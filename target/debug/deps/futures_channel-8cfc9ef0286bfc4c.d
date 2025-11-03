@@ -1,9 +1,0 @@
-C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\deps\libfutures_channel-8cfc9ef0286bfc4c.rmeta: C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src/lib.rs C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src\lock.rs C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src\mpsc\mod.rs C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src\mpsc\queue.rs C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src\oneshot.rs
-
-C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\deps\futures_channel-8cfc9ef0286bfc4c.d: C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src/lib.rs C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src\lock.rs C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src\mpsc\mod.rs C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src\mpsc\queue.rs C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src\oneshot.rs
-
-C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src/lib.rs:
-C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src\lock.rs:
-C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src\mpsc\mod.rs:
-C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src\mpsc\queue.rs:
-C:\Users\jatin\.cargo\registry\src\index.crates.io-6f17d22bba15001f\futures-channel-0.3.31\src\oneshot.rs:
