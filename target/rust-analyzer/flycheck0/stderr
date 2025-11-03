@@ -1,0 +1,1709 @@
+    Blocking waiting for file lock on build directory
+   2.344223300s  INFO prepare_target{force=false package_id=cvmsback v0.1.0 (C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback) target="cvmsback"}: cargo::core::compiler::fingerprint: fingerprint error for cvmsback v0.1.0 (C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback)/Check { test: false }/TargetInner { name: "cvmsback", doc: true, ..: with_path("C:\\Users\\jatin\\Desktop\\Development\\GoQuaunt\\cvmsback\\src\\main.rs", Edition2021) }
+   2.344350200s  INFO prepare_target{force=false package_id=cvmsback v0.1.0 (C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback) target="cvmsback"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\cvmsback-e51ba3fad324e454\bin-cvmsback`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_repo
+  10: git_filter_source_repo
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: <unknown>
+  14: <unknown>
+  15: git_midx_writer_dump
+  16: git_filter_source_repo
+  17: git_midx_writer_dump
+  18: BaseThreadInitThunk
+  19: RtlUserThreadStart
+   2.382633300s  INFO prepare_target{force=false package_id=anyhow v1.0.100 target="anyhow"}: cargo::core::compiler::fingerprint: fingerprint error for anyhow v1.0.100/Check { test: false }/TargetInner { ..: lib_target("anyhow", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\anyhow-1.0.100\\src/lib.rs", Edition2018) }
+   2.383022200s  INFO prepare_target{force=false package_id=anyhow v1.0.100 target="anyhow"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\anyhow-dccbf824d2440092\lib-anyhow`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_repo
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: <unknown>
+  15: <unknown>
+  16: git_midx_writer_dump
+  17: git_filter_source_repo
+  18: git_midx_writer_dump
+  19: BaseThreadInitThunk
+  20: RtlUserThreadStart
+   2.390043200s  INFO prepare_target{force=false package_id=anyhow v1.0.100 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for anyhow v1.0.100/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\anyhow-1.0.100\\build.rs", Edition2018) }
+   2.390180400s  INFO prepare_target{force=false package_id=anyhow v1.0.100 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\anyhow-2e66683d61678e94\run-build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_repo
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.390988400s  INFO prepare_target{force=false package_id=anyhow v1.0.100 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for anyhow v1.0.100/Build/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\anyhow-1.0.100\\build.rs", Edition2018) }
+   2.391276200s  INFO prepare_target{force=false package_id=anyhow v1.0.100 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\anyhow-f7c9fa726381d3f7\build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.392548100s  INFO prepare_target{force=false package_id=axum v0.7.9 target="axum"}: cargo::core::compiler::fingerprint: fingerprint error for axum v0.7.9/Check { test: false }/TargetInner { ..: lib_target("axum", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\axum-0.7.9\\src/lib.rs", Edition2021) }
+   2.392621600s  INFO prepare_target{force=false package_id=axum v0.7.9 target="axum"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\axum-bbe505ca530c1a29\lib-axum`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_repo
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: <unknown>
+  15: <unknown>
+  16: git_midx_writer_dump
+  17: git_filter_source_repo
+  18: git_midx_writer_dump
+  19: BaseThreadInitThunk
+  20: RtlUserThreadStart
+   2.393951900s  INFO prepare_target{force=false package_id=async-trait v0.1.89 target="async_trait"}: cargo::core::compiler::fingerprint: fingerprint error for async-trait v0.1.89/Build/TargetInner { for_host: true, proc_macro: true, ..: lib_target("async_trait", ["proc-macro"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\async-trait-0.1.89\\src/lib.rs", Edition2021) }
+   2.394010700s  INFO prepare_target{force=false package_id=async-trait v0.1.89 target="async_trait"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\async-trait-2f3d20b13ccf0e02\lib-async_trait`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: <unknown>
+  16: <unknown>
+  17: git_midx_writer_dump
+  18: git_filter_source_repo
+  19: git_midx_writer_dump
+  20: BaseThreadInitThunk
+  21: RtlUserThreadStart
+   2.394930600s  INFO prepare_target{force=false package_id=proc-macro2 v1.0.103 target="proc_macro2"}: cargo::core::compiler::fingerprint: fingerprint error for proc-macro2 v1.0.103/Build/TargetInner { ..: lib_target("proc_macro2", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\proc-macro2-1.0.103\\src/lib.rs", Edition2021) }
+   2.394981900s  INFO prepare_target{force=false package_id=proc-macro2 v1.0.103 target="proc_macro2"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\proc-macro2-9024a8c05aa5cdf2\lib-proc_macro2`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.398624400s  INFO prepare_target{force=false package_id=proc-macro2 v1.0.103 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for proc-macro2 v1.0.103/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\proc-macro2-1.0.103\\build.rs", Edition2021) }
+   2.398787900s  INFO prepare_target{force=false package_id=proc-macro2 v1.0.103 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\proc-macro2-8da9aee84346de84\run-build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_repo
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: <unknown>
+  19: <unknown>
+  20: git_midx_writer_dump
+  21: git_filter_source_repo
+  22: git_midx_writer_dump
+  23: BaseThreadInitThunk
+  24: RtlUserThreadStart
+   2.401179300s  INFO prepare_target{force=false package_id=proc-macro2 v1.0.103 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for proc-macro2 v1.0.103/Build/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\proc-macro2-1.0.103\\build.rs", Edition2021) }
+   2.401570600s  INFO prepare_target{force=false package_id=proc-macro2 v1.0.103 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\proc-macro2-8d7fc7dfab54fca9\build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: <unknown>
+  19: <unknown>
+  20: git_midx_writer_dump
+  21: git_filter_source_repo
+  22: git_midx_writer_dump
+  23: BaseThreadInitThunk
+  24: RtlUserThreadStart
+   2.407605200s  INFO prepare_target{force=false package_id=quote v1.0.41 target="quote"}: cargo::core::compiler::fingerprint: fingerprint error for quote v1.0.41/Build/TargetInner { ..: lib_target("quote", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\quote-1.0.41\\src/lib.rs", Edition2018) }
+   2.407698100s  INFO prepare_target{force=false package_id=quote v1.0.41 target="quote"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\quote-4af7ad87a58c0c34\lib-quote`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.409648900s  INFO prepare_target{force=false package_id=quote v1.0.41 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for quote v1.0.41/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\quote-1.0.41\\build.rs", Edition2018) }
+   2.409709800s  INFO prepare_target{force=false package_id=quote v1.0.41 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\quote-2f94cb53578f0d19\run-build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_repo
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: <unknown>
+  19: <unknown>
+  20: git_midx_writer_dump
+  21: git_filter_source_repo
+  22: git_midx_writer_dump
+  23: BaseThreadInitThunk
+  24: RtlUserThreadStart
+   2.410247500s  INFO prepare_target{force=false package_id=quote v1.0.41 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for quote v1.0.41/Build/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\quote-1.0.41\\build.rs", Edition2018) }
+   2.410290500s  INFO prepare_target{force=false package_id=quote v1.0.41 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\quote-775b0b886e60e8bc\build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: <unknown>
+  19: <unknown>
+  20: git_midx_writer_dump
+  21: git_filter_source_repo
+  22: git_midx_writer_dump
+  23: BaseThreadInitThunk
+  24: RtlUserThreadStart
+   2.411339500s  INFO prepare_target{force=false package_id=syn v2.0.108 target="syn"}: cargo::core::compiler::fingerprint: fingerprint error for syn v2.0.108/Build/TargetInner { ..: lib_target("syn", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\syn-2.0.108\\src/lib.rs", Edition2021) }
+   2.411443100s  INFO prepare_target{force=false package_id=syn v2.0.108 target="syn"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\syn-64da6aa5e100ccf8\lib-syn`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.413229200s  INFO prepare_target{force=false package_id=axum-core v0.4.5 target="axum_core"}: cargo::core::compiler::fingerprint: fingerprint error for axum-core v0.4.5/Check { test: false }/TargetInner { ..: lib_target("axum_core", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\axum-core-0.4.5\\src/lib.rs", Edition2021) }
+   2.413460500s  INFO prepare_target{force=false package_id=axum-core v0.4.5 target="axum_core"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\axum-core-cfe68597e9ab010c\lib-axum_core`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: <unknown>
+  16: <unknown>
+  17: git_midx_writer_dump
+  18: git_filter_source_repo
+  19: git_midx_writer_dump
+  20: BaseThreadInitThunk
+  21: RtlUserThreadStart
+   2.425387700s  INFO prepare_target{force=false package_id=rustversion v1.0.22 target="rustversion"}: cargo::core::compiler::fingerprint: fingerprint error for rustversion v1.0.22/Build/TargetInner { for_host: true, proc_macro: true, ..: lib_target("rustversion", ["proc-macro"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\rustversion-1.0.22\\src/lib.rs", Edition2018) }
+   2.425459100s  INFO prepare_target{force=false package_id=rustversion v1.0.22 target="rustversion"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\rustversion-92540222f5b39234\lib-rustversion`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.426762300s  INFO prepare_target{force=false package_id=rustversion v1.0.22 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for rustversion v1.0.22/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\rustversion-1.0.22\\build/build.rs", Edition2018) }
+   2.426789700s  INFO prepare_target{force=false package_id=rustversion v1.0.22 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\rustversion-d2e5c1bf769b560f\run-build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_repo
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: <unknown>
+  19: <unknown>
+  20: git_midx_writer_dump
+  21: git_filter_source_repo
+  22: git_midx_writer_dump
+  23: BaseThreadInitThunk
+  24: RtlUserThreadStart
+   2.427126900s  INFO prepare_target{force=false package_id=rustversion v1.0.22 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for rustversion v1.0.22/Build/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\rustversion-1.0.22\\build/build.rs", Edition2018) }
+   2.427166300s  INFO prepare_target{force=false package_id=rustversion v1.0.22 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\rustversion-39900106bf2ba4e3\build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: <unknown>
+  19: <unknown>
+  20: git_midx_writer_dump
+  21: git_filter_source_repo
+  22: git_midx_writer_dump
+  23: BaseThreadInitThunk
+  24: RtlUserThreadStart
+   2.430691100s  INFO prepare_target{force=false package_id=tracing v0.1.41 target="tracing"}: cargo::core::compiler::fingerprint: fingerprint error for tracing v0.1.41/Check { test: false }/TargetInner { ..: lib_target("tracing", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\tracing-0.1.41\\src/lib.rs", Edition2018) }
+   2.430948200s  INFO prepare_target{force=false package_id=tracing v0.1.41 target="tracing"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\tracing-4c15086fe627ef1d\lib-tracing`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.434970800s  INFO prepare_target{force=false package_id=tracing-attributes v0.1.30 target="tracing_attributes"}: cargo::core::compiler::fingerprint: fingerprint error for tracing-attributes v0.1.30/Build/TargetInner { for_host: true, proc_macro: true, ..: lib_target("tracing_attributes", ["proc-macro"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\tracing-attributes-0.1.30\\src/lib.rs", Edition2018) }
+   2.435530200s  INFO prepare_target{force=false package_id=tracing-attributes v0.1.30 target="tracing_attributes"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\tracing-attributes-2670bcf7a71c7580\lib-tracing_attributes`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: <unknown>
+  18: <unknown>
+  19: git_midx_writer_dump
+  20: git_filter_source_repo
+  21: git_midx_writer_dump
+  22: BaseThreadInitThunk
+  23: RtlUserThreadStart
+   2.443163600s  INFO prepare_target{force=false package_id=hyper v1.7.0 target="hyper"}: cargo::core::compiler::fingerprint: fingerprint error for hyper v1.7.0/Check { test: false }/TargetInner { ..: lib_target("hyper", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\hyper-1.7.0\\src/lib.rs", Edition2021) }
+   2.443240100s  INFO prepare_target{force=false package_id=hyper v1.7.0 target="hyper"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\hyper-c8ea61d13821c150\lib-hyper`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: <unknown>
+  16: <unknown>
+  17: git_midx_writer_dump
+  18: git_filter_source_repo
+  19: git_midx_writer_dump
+  20: BaseThreadInitThunk
+  21: RtlUserThreadStart
+   2.445362900s  INFO prepare_target{force=false package_id=httparse v1.10.1 target="httparse"}: cargo::core::compiler::fingerprint: fingerprint error for httparse v1.10.1/Check { test: false }/TargetInner { benched: false, ..: lib_target("httparse", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\httparse-1.10.1\\src/lib.rs", Edition2018) }
+   2.451074100s  INFO prepare_target{force=false package_id=httparse v1.10.1 target="httparse"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\httparse-559a6a3622ba5aeb\lib-httparse`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.457979800s  INFO prepare_target{force=false package_id=httparse v1.10.1 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for httparse v1.10.1/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\httparse-1.10.1\\build.rs", Edition2018) }
+   2.458050200s  INFO prepare_target{force=false package_id=httparse v1.10.1 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\httparse-d16ee1ba2e970739\run-build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_repo
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: <unknown>
+  19: <unknown>
+  20: git_midx_writer_dump
+  21: git_filter_source_repo
+  22: git_midx_writer_dump
+  23: BaseThreadInitThunk
+  24: RtlUserThreadStart
+   2.458623400s  INFO prepare_target{force=false package_id=httparse v1.10.1 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for httparse v1.10.1/Build/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\httparse-1.10.1\\build.rs", Edition2018) }
+   2.458660600s  INFO prepare_target{force=false package_id=httparse v1.10.1 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\httparse-86460f04c849ef3e\build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: <unknown>
+  19: <unknown>
+  20: git_midx_writer_dump
+  21: git_filter_source_repo
+  22: git_midx_writer_dump
+  23: BaseThreadInitThunk
+  24: RtlUserThreadStart
+   2.460524900s  INFO prepare_target{force=false package_id=tokio v1.48.0 target="tokio"}: cargo::core::compiler::fingerprint: fingerprint error for tokio v1.48.0/Check { test: false }/TargetInner { ..: lib_target("tokio", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\tokio-1.48.0\\src/lib.rs", Edition2021) }
+   2.460576500s  INFO prepare_target{force=false package_id=tokio v1.48.0 target="tokio"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\tokio-ed861ce8ef1378f1\lib-tokio`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.464302100s  INFO prepare_target{force=false package_id=parking_lot v0.12.5 target="parking_lot"}: cargo::core::compiler::fingerprint: fingerprint error for parking_lot v0.12.5/Check { test: false }/TargetInner { ..: lib_target("parking_lot", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\parking_lot-0.12.5\\src/lib.rs", Edition2021) }
+   2.464550100s  INFO prepare_target{force=false package_id=parking_lot v0.12.5 target="parking_lot"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\parking_lot-c84e4b75dc0d4089\lib-parking_lot`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: <unknown>
+  18: <unknown>
+  19: git_midx_writer_dump
+  20: git_filter_source_repo
+  21: git_midx_writer_dump
+  22: BaseThreadInitThunk
+  23: RtlUserThreadStart
+   2.472393900s  INFO prepare_target{force=false package_id=parking_lot_core v0.9.12 target="parking_lot_core"}: cargo::core::compiler::fingerprint: fingerprint error for parking_lot_core v0.9.12/Check { test: false }/TargetInner { ..: lib_target("parking_lot_core", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\parking_lot_core-0.9.12\\src/lib.rs", Edition2021) }
+   2.472510100s  INFO prepare_target{force=false package_id=parking_lot_core v0.9.12 target="parking_lot_core"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\parking_lot_core-ad3ce670a94a9139\lib-parking_lot_core`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: <unknown>
+  19: <unknown>
+  20: git_midx_writer_dump
+  21: git_filter_source_repo
+  22: git_midx_writer_dump
+  23: BaseThreadInitThunk
+  24: RtlUserThreadStart
+   2.474701800s  INFO prepare_target{force=false package_id=parking_lot_core v0.9.12 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for parking_lot_core v0.9.12/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\parking_lot_core-0.9.12\\build.rs", Edition2021) }
+   2.474739400s  INFO prepare_target{force=false package_id=parking_lot_core v0.9.12 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\parking_lot_core-49809e98419b8d2b\run-build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_repo
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_path
+  15: git_filter_source_path
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: git_filter_source_repo
+  19: git_filter_source_repo
+  20: <unknown>
+  21: <unknown>
+  22: git_midx_writer_dump
+  23: git_filter_source_repo
+  24: git_midx_writer_dump
+  25: BaseThreadInitThunk
+  26: RtlUserThreadStart
+   2.475081900s  INFO prepare_target{force=false package_id=parking_lot_core v0.9.12 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for parking_lot_core v0.9.12/Build/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\parking_lot_core-0.9.12\\build.rs", Edition2021) }
+   2.475130600s  INFO prepare_target{force=false package_id=parking_lot_core v0.9.12 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\parking_lot_core-1c514e1af781eaa0\build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_path
+  15: git_filter_source_path
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: git_filter_source_repo
+  19: git_filter_source_repo
+  20: <unknown>
+  21: <unknown>
+  22: git_midx_writer_dump
+  23: git_filter_source_repo
+  24: git_midx_writer_dump
+  25: BaseThreadInitThunk
+  26: RtlUserThreadStart
+   2.476273800s  INFO prepare_target{force=false package_id=socket2 v0.6.1 target="socket2"}: cargo::core::compiler::fingerprint: fingerprint error for socket2 v0.6.1/Check { test: false }/TargetInner { ..: lib_target("socket2", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\socket2-0.6.1\\src/lib.rs", Edition2021) }
+   2.476331600s  INFO prepare_target{force=false package_id=socket2 v0.6.1 target="socket2"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\socket2-84a0d1f79d8746b8\lib-socket2`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: <unknown>
+  18: <unknown>
+  19: git_midx_writer_dump
+  20: git_filter_source_repo
+  21: git_midx_writer_dump
+  22: BaseThreadInitThunk
+  23: RtlUserThreadStart
+   2.477109100s  INFO prepare_target{force=false package_id=windows-sys v0.60.2 target="windows_sys"}: cargo::core::compiler::fingerprint: fingerprint error for windows-sys v0.60.2/Check { test: false }/TargetInner { tested: false, doctest: false, ..: lib_target("windows_sys", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\windows-sys-0.60.2\\src/lib.rs", Edition2021) }
+   2.477146000s  INFO prepare_target{force=false package_id=windows-sys v0.60.2 target="windows_sys"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\windows-sys-db9d206010a6f820\lib-windows_sys`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: <unknown>
+  19: <unknown>
+  20: git_midx_writer_dump
+  21: git_filter_source_repo
+  22: git_midx_writer_dump
+  23: BaseThreadInitThunk
+  24: RtlUserThreadStart
+   2.477733200s  INFO prepare_target{force=false package_id=windows-targets v0.53.5 target="windows_targets"}: cargo::core::compiler::fingerprint: fingerprint error for windows-targets v0.53.5/Check { test: false }/TargetInner { ..: lib_target("windows_targets", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\windows-targets-0.53.5\\src/lib.rs", Edition2021) }
+   2.477770400s  INFO prepare_target{force=false package_id=windows-targets v0.53.5 target="windows_targets"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\windows-targets-be7a1c88c51e59a3\lib-windows_targets`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_path
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: git_filter_source_repo
+  19: <unknown>
+  20: <unknown>
+  21: git_midx_writer_dump
+  22: git_filter_source_repo
+  23: git_midx_writer_dump
+  24: BaseThreadInitThunk
+  25: RtlUserThreadStart
+   2.478339400s  INFO prepare_target{force=false package_id=windows_x86_64_msvc v0.53.1 target="windows_x86_64_msvc"}: cargo::core::compiler::fingerprint: fingerprint error for windows_x86_64_msvc v0.53.1/Check { test: false }/TargetInner { ..: lib_target("windows_x86_64_msvc", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\windows_x86_64_msvc-0.53.1\\src/lib.rs", Edition2021) }
+   2.478411500s  INFO prepare_target{force=false package_id=windows_x86_64_msvc v0.53.1 target="windows_x86_64_msvc"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\windows_x86_64_msvc-9a8fe0893aa792dc\lib-windows_x86_64_msvc`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_path
+  15: git_filter_source_path
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: git_filter_source_repo
+  19: git_filter_source_repo
+  20: <unknown>
+  21: <unknown>
+  22: git_midx_writer_dump
+  23: git_filter_source_repo
+  24: git_midx_writer_dump
+  25: BaseThreadInitThunk
+  26: RtlUserThreadStart
+   2.485000500s  INFO prepare_target{force=false package_id=windows_x86_64_msvc v0.53.1 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for windows_x86_64_msvc v0.53.1/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\windows_x86_64_msvc-0.53.1\\build.rs", Edition2021) }
+   2.485112300s  INFO prepare_target{force=false package_id=windows_x86_64_msvc v0.53.1 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\windows_x86_64_msvc-ba9237bba9e5aa14\run-build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_repo
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_path
+  15: git_filter_source_path
+  16: git_filter_source_path
+  17: git_filter_source_path
+  18: git_filter_source_repo
+  19: git_filter_source_repo
+  20: git_filter_source_repo
+  21: git_filter_source_repo
+  22: <unknown>
+  23: <unknown>
+  24: git_midx_writer_dump
+  25: git_filter_source_repo
+  26: git_midx_writer_dump
+  27: BaseThreadInitThunk
+  28: RtlUserThreadStart
+   2.489515700s  INFO prepare_target{force=false package_id=windows_x86_64_msvc v0.53.1 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for windows_x86_64_msvc v0.53.1/Build/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\windows_x86_64_msvc-0.53.1\\build.rs", Edition2021) }
+   2.489803200s  INFO prepare_target{force=false package_id=windows_x86_64_msvc v0.53.1 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\windows_x86_64_msvc-1554196ad167c96e\build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_path
+  15: git_filter_source_path
+  16: git_filter_source_path
+  17: git_filter_source_path
+  18: git_filter_source_repo
+  19: git_filter_source_repo
+  20: git_filter_source_repo
+  21: git_filter_source_repo
+  22: <unknown>
+  23: <unknown>
+  24: git_midx_writer_dump
+  25: git_filter_source_repo
+  26: git_midx_writer_dump
+  27: BaseThreadInitThunk
+  28: RtlUserThreadStart
+   2.492367100s  INFO prepare_target{force=false package_id=tokio-macros v2.6.0 target="tokio_macros"}: cargo::core::compiler::fingerprint: fingerprint error for tokio-macros v2.6.0/Build/TargetInner { for_host: true, proc_macro: true, ..: lib_target("tokio_macros", ["proc-macro"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\tokio-macros-2.6.0\\src/lib.rs", Edition2021) }
+   2.492447500s  INFO prepare_target{force=false package_id=tokio-macros v2.6.0 target="tokio_macros"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\tokio-macros-b266679da772aaf7\lib-tokio_macros`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: <unknown>
+  18: <unknown>
+  19: git_midx_writer_dump
+  20: git_filter_source_repo
+  21: git_midx_writer_dump
+  22: BaseThreadInitThunk
+  23: RtlUserThreadStart
+   2.493356500s  INFO prepare_target{force=false package_id=hyper-util v0.1.17 target="hyper_util"}: cargo::core::compiler::fingerprint: fingerprint error for hyper-util v0.1.17/Check { test: false }/TargetInner { ..: lib_target("hyper_util", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\hyper-util-0.1.17\\src/lib.rs", Edition2021) }
+   2.493397800s  INFO prepare_target{force=false package_id=hyper-util v0.1.17 target="hyper_util"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\hyper-util-9665cca054931936\lib-hyper_util`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: <unknown>
+  16: <unknown>
+  17: git_midx_writer_dump
+  18: git_filter_source_repo
+  19: git_midx_writer_dump
+  20: BaseThreadInitThunk
+  21: RtlUserThreadStart
+   2.496562000s  INFO prepare_target{force=false package_id=serde v1.0.228 target="serde"}: cargo::core::compiler::fingerprint: fingerprint error for serde v1.0.228/Check { test: false }/TargetInner { ..: lib_target("serde", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\serde-1.0.228\\src/lib.rs", Edition2021) }
+   2.496989200s  INFO prepare_target{force=false package_id=serde v1.0.228 target="serde"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\serde-7e6210922edadc6b\lib-serde`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: <unknown>
+  16: <unknown>
+  17: git_midx_writer_dump
+  18: git_filter_source_repo
+  19: git_midx_writer_dump
+  20: BaseThreadInitThunk
+  21: RtlUserThreadStart
+   2.505746100s  INFO prepare_target{force=false package_id=serde v1.0.228 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for serde v1.0.228/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\serde-1.0.228\\build.rs", Edition2021) }
+   2.505873000s  INFO prepare_target{force=false package_id=serde v1.0.228 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\serde-8746eb77106f731d\run-build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_repo
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: <unknown>
+  18: <unknown>
+  19: git_midx_writer_dump
+  20: git_filter_source_repo
+  21: git_midx_writer_dump
+  22: BaseThreadInitThunk
+  23: RtlUserThreadStart
+   2.506641500s  INFO prepare_target{force=false package_id=serde v1.0.228 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for serde v1.0.228/Build/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\serde-1.0.228\\build.rs", Edition2021) }
+   2.506700300s  INFO prepare_target{force=false package_id=serde v1.0.228 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\serde-6ca397c70c28836e\build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: <unknown>
+  18: <unknown>
+  19: git_midx_writer_dump
+  20: git_filter_source_repo
+  21: git_midx_writer_dump
+  22: BaseThreadInitThunk
+  23: RtlUserThreadStart
+   2.508242300s  INFO prepare_target{force=false package_id=serde_core v1.0.228 target="serde_core"}: cargo::core::compiler::fingerprint: fingerprint error for serde_core v1.0.228/Check { test: false }/TargetInner { ..: lib_target("serde_core", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\serde_core-1.0.228\\src/lib.rs", Edition2021) }
+   2.508296000s  INFO prepare_target{force=false package_id=serde_core v1.0.228 target="serde_core"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\serde_core-cb058113639294a0\lib-serde_core`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.510300100s  INFO prepare_target{force=false package_id=serde_core v1.0.228 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for serde_core v1.0.228/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\serde_core-1.0.228\\build.rs", Edition2021) }
+   2.510345300s  INFO prepare_target{force=false package_id=serde_core v1.0.228 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\serde_core-871722b81c0900ed\run-build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_repo
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: <unknown>
+  19: <unknown>
+  20: git_midx_writer_dump
+  21: git_filter_source_repo
+  22: git_midx_writer_dump
+  23: BaseThreadInitThunk
+  24: RtlUserThreadStart
+   2.510769500s  INFO prepare_target{force=false package_id=serde_core v1.0.228 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for serde_core v1.0.228/Build/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\serde_core-1.0.228\\build.rs", Edition2021) }
+   2.510829500s  INFO prepare_target{force=false package_id=serde_core v1.0.228 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\serde_core-f403ac0a3ce4fb56\build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_path
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: git_filter_source_repo
+  18: <unknown>
+  19: <unknown>
+  20: git_midx_writer_dump
+  21: git_filter_source_repo
+  22: git_midx_writer_dump
+  23: BaseThreadInitThunk
+  24: RtlUserThreadStart
+   2.513960300s  INFO prepare_target{force=false package_id=serde_derive v1.0.228 target="serde_derive"}: cargo::core::compiler::fingerprint: fingerprint error for serde_derive v1.0.228/Build/TargetInner { for_host: true, proc_macro: true, ..: lib_target("serde_derive", ["proc-macro"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\serde_derive-1.0.228\\src/lib.rs", Edition2021) }
+   2.514559600s  INFO prepare_target{force=false package_id=serde_derive v1.0.228 target="serde_derive"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\serde_derive-ce39b6c6f75c95b6\lib-serde_derive`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.517798200s  INFO prepare_target{force=false package_id=serde_json v1.0.145 target="serde_json"}: cargo::core::compiler::fingerprint: fingerprint error for serde_json v1.0.145/Check { test: false }/TargetInner { ..: lib_target("serde_json", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\serde_json-1.0.145\\src/lib.rs", Edition2021) }
+   2.517920800s  INFO prepare_target{force=false package_id=serde_json v1.0.145 target="serde_json"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\serde_json-8f1b134dc38069bf\lib-serde_json`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: <unknown>
+  16: <unknown>
+  17: git_midx_writer_dump
+  18: git_filter_source_repo
+  19: git_midx_writer_dump
+  20: BaseThreadInitThunk
+  21: RtlUserThreadStart
+   2.524941500s  INFO prepare_target{force=false package_id=serde_json v1.0.145 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for serde_json v1.0.145/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\serde_json-1.0.145\\build.rs", Edition2021) }
+   2.525019600s  INFO prepare_target{force=false package_id=serde_json v1.0.145 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\serde_json-8d9a2be660074eb6\run-build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_repo
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: <unknown>
+  18: <unknown>
+  19: git_midx_writer_dump
+  20: git_filter_source_repo
+  21: git_midx_writer_dump
+  22: BaseThreadInitThunk
+  23: RtlUserThreadStart
+   2.525426600s  INFO prepare_target{force=false package_id=serde_json v1.0.145 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for serde_json v1.0.145/Build/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\serde_json-1.0.145\\build.rs", Edition2021) }
+   2.525462200s  INFO prepare_target{force=false package_id=serde_json v1.0.145 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\serde_json-c3ca47d49936c74e\build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_path
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: git_filter_source_repo
+  17: <unknown>
+  18: <unknown>
+  19: git_midx_writer_dump
+  20: git_filter_source_repo
+  21: git_midx_writer_dump
+  22: BaseThreadInitThunk
+  23: RtlUserThreadStart
+   2.526232100s  INFO prepare_target{force=false package_id=serde_path_to_error v0.1.20 target="serde_path_to_error"}: cargo::core::compiler::fingerprint: fingerprint error for serde_path_to_error v0.1.20/Check { test: false }/TargetInner { ..: lib_target("serde_path_to_error", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\serde_path_to_error-0.1.20\\src/lib.rs", Edition2021) }
+   2.526284600s  INFO prepare_target{force=false package_id=serde_path_to_error v0.1.20 target="serde_path_to_error"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\serde_path_to_error-8357e9fb8b8abf22\lib-serde_path_to_error`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: <unknown>
+  16: <unknown>
+  17: git_midx_writer_dump
+  18: git_filter_source_repo
+  19: git_midx_writer_dump
+  20: BaseThreadInitThunk
+  21: RtlUserThreadStart
+   2.527163800s  INFO prepare_target{force=false package_id=serde_urlencoded v0.7.1 target="serde_urlencoded"}: cargo::core::compiler::fingerprint: fingerprint error for serde_urlencoded v0.7.1/Check { test: false }/TargetInner { tested: false, ..: lib_target("serde_urlencoded", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\serde_urlencoded-0.7.1\\src\\lib.rs", Edition2018) }
+   2.527217900s  INFO prepare_target{force=false package_id=serde_urlencoded v0.7.1 target="serde_urlencoded"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\serde_urlencoded-9076ed4532a66789\lib-serde_urlencoded`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: <unknown>
+  16: <unknown>
+  17: git_midx_writer_dump
+  18: git_filter_source_repo
+  19: git_midx_writer_dump
+  20: BaseThreadInitThunk
+  21: RtlUserThreadStart
+   2.528426600s  INFO prepare_target{force=false package_id=tower v0.5.2 target="tower"}: cargo::core::compiler::fingerprint: fingerprint error for tower v0.5.2/Check { test: false }/TargetInner { ..: lib_target("tower", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\tower-0.5.2\\src/lib.rs", Edition2018) }
+   2.528488300s  INFO prepare_target{force=false package_id=tower v0.5.2 target="tower"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\tower-5069870e60fa69d6\lib-tower`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: <unknown>
+  16: <unknown>
+  17: git_midx_writer_dump
+  18: git_filter_source_repo
+  19: git_midx_writer_dump
+  20: BaseThreadInitThunk
+  21: RtlUserThreadStart
+   2.536499400s  INFO prepare_target{force=false package_id=thiserror v1.0.69 target="thiserror"}: cargo::core::compiler::fingerprint: fingerprint error for thiserror v1.0.69/Check { test: false }/TargetInner { ..: lib_target("thiserror", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\thiserror-1.0.69\\src/lib.rs", Edition2021) }
+   2.536849200s  INFO prepare_target{force=false package_id=thiserror v1.0.69 target="thiserror"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\thiserror-fc9d54f0a0ae7f70\lib-thiserror`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_repo
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: <unknown>
+  15: <unknown>
+  16: git_midx_writer_dump
+  17: git_filter_source_repo
+  18: git_midx_writer_dump
+  19: BaseThreadInitThunk
+  20: RtlUserThreadStart
+   2.540945600s  INFO prepare_target{force=false package_id=thiserror v1.0.69 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for thiserror v1.0.69/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\thiserror-1.0.69\\build.rs", Edition2021) }
+   2.541014100s  INFO prepare_target{force=false package_id=thiserror v1.0.69 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\thiserror-16fc2d95e454c60d\run-build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_repo
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.541510100s  INFO prepare_target{force=false package_id=thiserror v1.0.69 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for thiserror v1.0.69/Build/TargetInner { ..: custom_build_target("build-script-build", "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\thiserror-1.0.69\\build.rs", Edition2021) }
+   2.541554100s  INFO prepare_target{force=false package_id=thiserror v1.0.69 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\thiserror-03f166336179f1f0\build-script-build-script-build`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_path
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: git_filter_source_repo
+  16: <unknown>
+  17: <unknown>
+  18: git_midx_writer_dump
+  19: git_filter_source_repo
+  20: git_midx_writer_dump
+  21: BaseThreadInitThunk
+  22: RtlUserThreadStart
+   2.542450100s  INFO prepare_target{force=false package_id=thiserror-impl v1.0.69 target="thiserror_impl"}: cargo::core::compiler::fingerprint: fingerprint error for thiserror-impl v1.0.69/Build/TargetInner { for_host: true, proc_macro: true, ..: lib_target("thiserror_impl", ["proc-macro"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\thiserror-impl-1.0.69\\src/lib.rs", Edition2021) }
+   2.542494300s  INFO prepare_target{force=false package_id=thiserror-impl v1.0.69 target="thiserror_impl"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\thiserror-impl-f9b0e851cf43b17a\lib-thiserror_impl`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_path
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: git_filter_source_repo
+  15: <unknown>
+  16: <unknown>
+  17: git_midx_writer_dump
+  18: git_filter_source_repo
+  19: git_midx_writer_dump
+  20: BaseThreadInitThunk
+  21: RtlUserThreadStart
+   2.543526000s  INFO prepare_target{force=false package_id=tracing-subscriber v0.3.20 target="tracing_subscriber"}: cargo::core::compiler::fingerprint: fingerprint error for tracing-subscriber v0.3.20/Check { test: false }/TargetInner { ..: lib_target("tracing_subscriber", ["lib"], "C:\\Users\\jatin\\.cargo\\registry\\src\\index.crates.io-6f17d22bba15001f\\tracing-subscriber-0.3.20\\src/lib.rs", Edition2018) }
+   2.543600400s  INFO prepare_target{force=false package_id=tracing-subscriber v0.3.20 target="tracing_subscriber"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\tracing-subscriber-073f8f6761e58b3d\lib-tracing_subscriber`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_path
+  10: git_filter_source_repo
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: git_filter_source_repo
+  14: <unknown>
+  15: <unknown>
+  16: git_midx_writer_dump
+  17: git_filter_source_repo
+  18: git_midx_writer_dump
+  19: BaseThreadInitThunk
+  20: RtlUserThreadStart
+   2.553245000s  INFO prepare_target{force=false package_id=cvmsback v0.1.0 (C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback) target="cvmsback"}: cargo::core::compiler::fingerprint: fingerprint error for cvmsback v0.1.0 (C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback)/Check { test: true }/TargetInner { name: "cvmsback", doc: true, ..: with_path("C:\\Users\\jatin\\Desktop\\Development\\GoQuaunt\\cvmsback\\src\\main.rs", Edition2021) }
+   2.553462100s  INFO prepare_target{force=false package_id=cvmsback v0.1.0 (C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback) target="cvmsback"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\jatin\Desktop\Development\GoQuaunt\cvmsback\target\debug\.fingerprint\cvmsback-6a794fa0bf96adf5\test-bin-cvmsback`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_path
+   6: git_filter_source_path
+   7: git_filter_source_path
+   8: git_filter_source_path
+   9: git_filter_source_repo
+  10: git_filter_source_repo
+  11: git_filter_source_repo
+  12: git_filter_source_repo
+  13: <unknown>
+  14: <unknown>
+  15: git_midx_writer_dump
+  16: git_filter_source_repo
+  17: git_midx_writer_dump
+  18: BaseThreadInitThunk
+  19: RtlUserThreadStart
+   Compiling proc-macro2 v1.0.103
+   Compiling quote v1.0.41
+   Compiling windows_x86_64_msvc v0.53.1
+   Compiling parking_lot_core v0.9.12
+   Compiling serde_core v1.0.228
+   Compiling httparse v1.10.1
+   Compiling serde v1.0.228
+   Compiling rustversion v1.0.22
+error: could not compile `windows_x86_64_msvc` (build script) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+   Compiling serde_json v1.0.145
+error: could not compile `parking_lot_core` (build script) due to 2 previous errors
+   Compiling anyhow v1.0.100
+error: could not compile `quote` (build script) due to 2 previous errors
+   Compiling thiserror v1.0.69
+error: could not compile `proc-macro2` (build script) due to 2 previous errors
+error: could not compile `serde` (build script) due to 2 previous errors
+error: could not compile `serde_core` (build script) due to 2 previous errors
+error: could not compile `rustversion` (build script) due to 2 previous errors
+error: could not compile `serde_json` (build script) due to 2 previous errors
+error: could not compile `httparse` (build script) due to 2 previous errors
+error: could not compile `thiserror` (build script) due to 2 previous errors
+error: could not compile `anyhow` (build script) due to 2 previous errors
