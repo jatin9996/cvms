@@ -5,5 +5,8 @@ pub mod error;
 pub mod solana_client;
 pub mod telemetry;
 pub mod auth;
+pub mod notify;
+pub mod ops;
+pub mod tasks;
 
 

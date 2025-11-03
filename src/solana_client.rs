@@ -60,6 +60,20 @@ pub async fn send_transaction(client: &SolanaClient, tx: &Transaction) -> AppRes
 	Ok(sig)
 }
 
+pub async fn send_transaction_with_retries(client: &SolanaClient, tx: &Transaction, max_retries: usize) -> AppResult<Signature> {
+	let mut last_err: Option<String> = None;
+	for attempt in 0..max_retries {
+		match send_transaction(client, tx).await {
+			Ok(sig) => return Ok(sig),
+			Err(e) => {
+				last_err = Some(format!("{e}"));
+				tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
+			}
+		}
+	}
+	Err(AppError::Solana(last_err.unwrap_or_else(|| "send failed".to_string())))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DepositParams {
 	pub program_id: Pubkey,
@@ -104,6 +118,26 @@ pub fn build_instruction_withdraw(params: &WithdrawParams) -> AppResult<Instruct
 	Ok(Instruction { program_id: params.program_id, accounts, data })
 }
 
+pub fn build_instruction_pm_lock(position_manager_program_id: &Pubkey, vault_program_id: &Pubkey, owner: &Pubkey, amount: u64) -> AppResult<Instruction> {
+	let accounts = vec![
+		AccountMeta::new(*owner, true),
+		AccountMeta::new_readonly(*vault_program_id, false),
+	];
+	let mut data = vec![10u8]; // op code placeholder for lock
+	data.extend_from_slice(&amount.to_le_bytes());
+	Ok(Instruction { program_id: *position_manager_program_id, accounts, data })
+}
+
+pub fn build_instruction_pm_unlock(position_manager_program_id: &Pubkey, vault_program_id: &Pubkey, owner: &Pubkey, amount: u64) -> AppResult<Instruction> {
+	let accounts = vec![
+		AccountMeta::new(*owner, true),
+		AccountMeta::new_readonly(*vault_program_id, false),
+	];
+	let mut data = vec![11u8]; // op code placeholder for unlock
+	data.extend_from_slice(&amount.to_le_bytes());
+	Ok(Instruction { program_id: *position_manager_program_id, accounts, data })
+}
+
 pub fn build_compute_budget_instructions(units: u32, micro_lamports: u64) -> Vec<Instruction> {
 	vec![
 		ComputeBudgetInstruction::set_compute_unit_limit(units),
@@ -112,6 +146,12 @@ pub fn build_compute_budget_instructions(units: u32, micro_lamports: u64) -> Vec
 }
 
 pub fn load_deployer_keypair(path: &str) -> AppResult<Arc<Keypair>> {
+	// Prefer env-based secret if provided (DEPLOYER_KEYPAIR_BASE64)
+	if let Ok(b64) = std::env::var("DEPLOYER_KEYPAIR_BASE64") {
+		let bytes = base64::decode(b64).map_err(|e| AppError::Internal(format!("invalid base64 keypair: {e}")))?;
+		let kp = Keypair::from_bytes(&bytes).map_err(|e| AppError::Internal(format!("invalid keypair bytes: {e}")))?;
+		return Ok(Arc::new(kp));
+	}
 	use solana_sdk::signature::read_keypair_file;
 	let kp = read_keypair_file(path).map_err(|e| AppError::Internal(format!("failed to read keypair: {e}")))?;
 	Ok(Arc::new(kp))

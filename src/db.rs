@@ -33,6 +33,43 @@ pub async fn init(pool: &PgPool) -> Result<(), sqlx::Error> {
 	.execute(pool)
 	.await?;
 
+	// Idempotency on signature
+	sqlx::query(
+		"CREATE UNIQUE INDEX IF NOT EXISTS transactions_signature_key ON transactions(signature)"
+	)
+	.execute(pool)
+	.await?;
+
+	// Vault snapshots
+	sqlx::query(
+		"CREATE TABLE IF NOT EXISTS vaults (
+			owner TEXT PRIMARY KEY,
+			token_account TEXT,
+			total_deposits BIGINT NOT NULL DEFAULT 0,
+			total_withdrawals BIGINT NOT NULL DEFAULT 0,
+			total_balance BIGINT NOT NULL DEFAULT 0,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)"
+	)
+	.execute(pool)
+	.await?;
+
+	// Reconciliation logs
+	sqlx::query(
+		"CREATE TABLE IF NOT EXISTS reconciliation_logs (
+			id BIGSERIAL PRIMARY KEY,
+			vault_owner TEXT NOT NULL,
+			token_account TEXT,
+			db_balance BIGINT NOT NULL,
+			chain_balance BIGINT NOT NULL,
+			discrepancy BIGINT NOT NULL,
+			threshold BIGINT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)"
+	)
+	.execute(pool)
+	.await?;
+
 	sqlx::query(
 		"CREATE TABLE IF NOT EXISTS authorized_programs (
 			program_id TEXT PRIMARY KEY,
@@ -78,7 +115,7 @@ pub async fn insert_transaction(
 	amount: Option<i64>,
 	kind: &str,
 ) -> Result<(), sqlx::Error> {
-	sqlx::query("INSERT INTO transactions (owner, signature, amount, kind) VALUES ($1, $2, $3, $4)")
+	sqlx::query("INSERT INTO transactions (owner, signature, amount, kind) VALUES ($1, $2, $3, $4) ON CONFLICT (signature) DO NOTHING")
 		.bind(owner)
 		.bind(signature)
 		.bind(amount)
@@ -98,6 +135,86 @@ pub async fn list_transactions(pool: &PgPool, owner: &str, limit: i64, offset: i
 	.fetch_all(pool)
 	.await?;
 	Ok(rows)
+}
+
+pub async fn get_vault(pool: &PgPool, owner: &str) -> Result<Option<(Option<String>, i64)>, sqlx::Error> {
+	let row = sqlx::query_as::<_, (Option<String>, i64)>(
+		"SELECT token_account, total_balance FROM vaults WHERE owner = $1"
+	)
+	.bind(owner)
+	.fetch_optional(pool)
+	.await?;
+	Ok(row)
+}
+
+pub async fn upsert_vault_token_account(pool: &PgPool, owner: &str, token_account: &str) -> Result<(), sqlx::Error> {
+	sqlx::query(
+		"INSERT INTO vaults (owner, token_account) VALUES ($1, $2)
+		 ON CONFLICT (owner) DO UPDATE SET token_account = EXCLUDED.token_account"
+	)
+	.bind(owner)
+	.bind(token_account)
+	.execute(pool)
+	.await?;
+	Ok(())
+}
+
+pub async fn update_vault_snapshot(
+	pool: &PgPool,
+	owner: &str,
+	new_total_balance: i64,
+	deposit_delta: i64,
+	withdraw_delta: i64,
+) -> Result<(), sqlx::Error> {
+	sqlx::query(
+		"INSERT INTO vaults (owner, total_deposits, total_withdrawals, total_balance)
+		 VALUES ($1, GREATEST($3,0), GREATEST($4,0), $2)
+		 ON CONFLICT (owner) DO UPDATE SET
+			 total_deposits = vaults.total_deposits + GREATEST($3,0),
+			 total_withdrawals = vaults.total_withdrawals + GREATEST($4,0),
+			 total_balance = $2,
+			 updated_at = NOW()"
+	)
+	.bind(owner)
+	.bind(new_total_balance)
+	.bind(deposit_delta)
+	.bind(withdraw_delta)
+	.execute(pool)
+	.await?;
+	Ok(())
+}
+
+pub async fn list_vaults(pool: &PgPool) -> Result<Vec<(String, Option<String>, i64)>, sqlx::Error> {
+	let rows = sqlx::query_as::<_, (String, Option<String>, i64)>(
+		"SELECT owner, token_account, total_balance FROM vaults"
+	)
+	.fetch_all(pool)
+	.await?;
+	Ok(rows)
+}
+
+pub async fn insert_reconciliation_log(
+	pool: &PgPool,
+	vault_owner: &str,
+	token_account: Option<&str>,
+	db_balance: i64,
+	chain_balance: i64,
+	discrepancy: i64,
+	threshold: i64,
+) -> Result<(), sqlx::Error> {
+	sqlx::query(
+		"INSERT INTO reconciliation_logs (vault_owner, token_account, db_balance, chain_balance, discrepancy, threshold)
+		 VALUES ($1, $2, $3, $4, $5, $6)"
+	)
+	.bind(vault_owner)
+	.bind(token_account)
+	.bind(db_balance)
+	.bind(chain_balance)
+	.bind(discrepancy)
+	.bind(threshold)
+	.execute(pool)
+	.await?;
+	Ok(())
 }
 
 

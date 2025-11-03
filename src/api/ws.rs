@@ -14,14 +14,41 @@ pub async fn ws_handler(State(state): State<AppState>, ws: WebSocketUpgrade) -> 
 }
 
 #[derive(Deserialize)]
-struct SubscribeMsg { subscribe: String }
+struct SubscribeMsg { subscribe: String, topic: Option<String>, owner: Option<String> }
 
 async fn handle_socket(state: AppState, mut socket: WebSocket) {
 	let _ = socket.send(Message::text("connected")).await;
-	while let Some(Ok(msg)) = socket.next().await {
+    while let Some(Ok(msg)) = socket.next().await {
 		match msg {
 			Message::Text(_t) => {
                 if let Ok(req) = serde_json::from_str::<SubscribeMsg>(&_t) {
+                    // Topic-based subscription via notifier
+                    if let Some(topic) = req.topic.as_ref() {
+                        let mut rx = match topic.as_str() {
+                            "deposit_event" => state.notifier.deposit_tx.subscribe(),
+                            "withdraw_event" => state.notifier.withdraw_tx.subscribe(),
+                            "lock_event" => state.notifier.lock_tx.subscribe(),
+                            "unlock_event" => state.notifier.unlock_tx.subscribe(),
+                            "vault_balance_update" => state.notifier.vault_balance_tx.subscribe(),
+                            "tvl_update" => state.notifier.tvl_tx.subscribe(),
+                            _ => {
+                                let _ = socket.send(Message::text("unknown topic"));
+                                continue;
+                            }
+                        };
+                        let mut ws_sender = socket.clone();
+                        let owner_filter = req.owner.clone();
+                        tokio::spawn(async move {
+                            while let Ok(msg) = rx.recv().await {
+                                if let Some(ref owner) = owner_filter {
+                                    if !msg.contains(owner) { continue; }
+                                }
+                                let _ = ws_sender.send(Message::text(msg)).await;
+                            }
+                        });
+                        let _ = socket.send(Message::text("subscribed")).await;
+                        continue;
+                    }
                     if let Ok(pk) = Pubkey::from_str(&req.subscribe) {
                         let ws_url = state.cfg.solana_rpc_url.replace("https://", "wss://").replace("http://", "ws://");
                         let mut ws_sender = socket.clone();

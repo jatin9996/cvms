@@ -11,6 +11,8 @@ pub struct AppConfig {
 	pub deployer_keypair_path: String,
 	pub vault_authority_pubkey: String,
 	pub admin_jwt_secret: String,
+	pub position_manager_program_id: String,
+	pub reconciliation_threshold: i64,
 }
 
 impl AppConfig {
@@ -25,6 +27,8 @@ impl AppConfig {
 			deployer_keypair_path: std::env::var("DEPLOYER_KEYPAIR_PATH").unwrap_or_default(),
 			vault_authority_pubkey: std::env::var("VAULT_AUTHORITY_PUBKEY").unwrap_or_default(),
 			admin_jwt_secret: std::env::var("ADMIN_JWT_SECRET").unwrap_or_default(),
+			position_manager_program_id: std::env::var("POSITION_MANAGER_PROGRAM_ID").unwrap_or_default(),
+			reconciliation_threshold: std::env::var("RECONCILIATION_THRESHOLD").ok().and_then(|v| v.parse().ok()).unwrap_or(0),
 		}
 	}
 }

@@ -1,7 +1,8 @@
 use axum::{routing::{get, post}, Router};
+use tower_governor::{GovernorConfigBuilder, GovernorLayer};
 use sqlx::PgPool;
 
-use crate::{config::AppConfig, solana_client::SolanaClient};
+use crate::{config::AppConfig, solana_client::SolanaClient, notify::Notifier, ops::RateLimiter};
 
 mod routes;
 mod ws;
@@ -11,19 +12,31 @@ pub struct AppState {
     pub pool: PgPool,
     pub cfg: AppConfig,
     pub sol: SolanaClient,
+    pub notifier: std::sync::Arc<Notifier>,
+    pub rate_limiter: std::sync::Arc<RateLimiter>,
 }
 
 pub fn router(state: AppState) -> Router {
+    let governor_conf = Box::leak(Box::new(GovernorConfigBuilder::default()
+        .per_second(5)
+        .burst_size(10)
+        .finish()
+        .expect("governor config")));
+
     Router::new()
 		.route("/health", get(routes::health))
+		.route("/ready", get(routes::ready))
         .route("/auth/nonce", post(routes::issue_nonce))
 		.route("/vault/initialize", post(routes::vault_initialize))
 		.route("/vault/deposit", post(routes::vault_deposit))
-		.route("/vault/withdraw", post(routes::vault_withdraw))
+		.route("/vault/withdraw", post(routes::vault_withdraw).route_layer(GovernorLayer::new(governor_conf)))
 		.route("/vault/balance/:owner", get(routes::vault_balance))
 		.route("/vault/transactions/:owner", get(routes::vault_transactions))
 		.route("/vault/tvl", get(routes::vault_tvl))
         .route("/admin/vault-authority/add", post(routes::admin_vault_authority_add))
+        .route("/admin/vault-token-account/set", post(routes::admin_set_vault_token_account))
+		.route("/pm/lock", post(routes::pm_lock).route_layer(GovernorLayer::new(governor_conf)))
+		.route("/pm/unlock", post(routes::pm_unlock).route_layer(GovernorLayer::new(governor_conf)))
 		.route("/ws", get(ws::ws_handler))
         .with_state(state)
 }

@@ -10,12 +10,20 @@ use crate::{
 	solana_client::{
 		build_compute_budget_instructions, build_instruction_deposit, build_instruction_initialize_vault,
 		build_instruction_withdraw, load_deployer_keypair, DepositParams, WithdrawParams,
+		build_instruction_pm_lock, build_instruction_pm_unlock, send_transaction_with_retries,
 	},
 };
 use super::AppState;
 
 pub async fn health() -> Json<serde_json::Value> {
 	Json(serde_json::json!({ "status": "ok" }))
+}
+
+pub async fn ready(State(state): State<AppState>) -> impl IntoResponse {
+	let db_ok = sqlx::query_scalar!("SELECT 1 as one").fetch_one(&state.pool).await.is_ok();
+	let rpc_ok = state.sol.rpc.get_latest_blockhash().await.is_ok();
+	let status = if db_ok && rpc_ok { "ok" } else { "degraded" };
+	(StatusCode::OK, Json(serde_json::json!({ "status": status, "db": db_ok, "rpc": rpc_ok })))
 }
 
 #[derive(Deserialize)]
@@ -88,6 +96,10 @@ pub async fn vault_withdraw(State(state): State<AppState>, Json(req): Json<Withd
     if let Err(e) = verify_wallet_signature(&req.owner, message.as_bytes(), &req.signature) {
         return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": e.to_string() })));
     }
+    // Rate limiting per owner
+    if !state.rate_limiter.check_and_record(&req.owner).await {
+        return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "rate limited" })));
+    }
     match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
         Ok(true) => {},
         Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
@@ -120,6 +132,18 @@ pub async fn vault_withdraw(State(state): State<AppState>, Json(req): Json<Withd
     };
 
     let _ = db::insert_transaction(&state.pool, &req.owner, &sig.to_string(), Some(req.amount as i64), "withdraw").await;
+    // best-effort snapshot update via on-chain balance using owner as token account
+    if let Ok(owner_pk) = Pubkey::from_str(&req.owner) {
+        let _ = db::upsert_vault_token_account(&state.pool, &req.owner, &req.owner).await;
+        if let Ok(chain_bal) = crate::solana_client::get_token_balance(&state.sol, &owner_pk).await {
+            let _ = db::update_vault_snapshot(&state.pool, &req.owner, chain_bal as i64, 0, req.amount as i64).await;
+            let _ = state.notifier.vault_balance_tx.send(serde_json::json!({
+                "owner": req.owner,
+                "balance": chain_bal,
+            }).to_string());
+        }
+    }
+    let _ = state.notifier.withdraw_tx.send(serde_json::json!({ "owner": req.owner, "amount": req.amount, "signature": sig.to_string() }).to_string());
     (StatusCode::OK, Json(serde_json::json!({ "signature": sig.to_string() })))
 }
 
@@ -157,7 +181,10 @@ pub async fn vault_tvl(State(state): State<AppState>) -> impl IntoResponse {
         "SELECT COALESCE(SUM(CASE WHEN kind = 'deposit' THEN amount ELSE -amount END), 0) AS tvl FROM transactions"
     ).fetch_one(&state.pool).await;
     match row {
-        Ok(tvl) => (StatusCode::OK, Json(serde_json::json!({ "tvl": tvl })) ),
+        Ok(tvl) => {
+            let _ = state.notifier.tvl_tx.send(serde_json::json!({ "tvl": tvl }).to_string());
+            (StatusCode::OK, Json(serde_json::json!({ "tvl": tvl })) )
+        },
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
     }
 }
@@ -200,4 +227,92 @@ pub async fn admin_vault_authority_add(
     }
 }
 
+
+#[derive(Deserialize)]
+pub struct AdminSetVaultTokenAccountRequest { pub owner: String, pub token_account: String }
+
+pub async fn admin_set_vault_token_account(
+	State(state): State<AppState>,
+	TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+	Json(req): Json<AdminSetVaultTokenAccountRequest>,
+) -> impl IntoResponse {
+	let token = auth.token();
+	if state.cfg.admin_jwt_secret.is_empty() {
+		return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "admin secret not configured" })));
+	}
+	if verify_admin_jwt(token, &state.cfg.admin_jwt_secret).is_err() {
+		return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "unauthorized" })));
+	}
+	if Pubkey::from_str(&req.owner).is_err() || Pubkey::from_str(&req.token_account).is_err() {
+		return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid pubkey(s)" })));
+	}
+	if let Err(e) = db::upsert_vault_token_account(&state.pool, &req.owner, &req.token_account).await {
+		return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })));
+	}
+	// backfill snapshot from chain
+	if let Ok(pk) = Pubkey::from_str(&req.token_account) {
+		if let Ok(bal) = crate::solana_client::get_token_balance(&state.sol, &pk).await {
+			let _ = db::update_vault_snapshot(&state.pool, &req.owner, bal as i64, 0, 0).await;
+			let _ = state.notifier.vault_balance_tx.send(serde_json::json!({ "owner": req.owner, "balance": bal }).to_string());
+		}
+	}
+	(StatusCode::OK, Json(serde_json::json!({ "ok": true })))
+}
+
+
+#[derive(Deserialize)]
+pub struct PmLockRequest { pub owner: String, pub amount: u64, pub nonce: String, pub signature: String }
+
+pub async fn pm_lock(State(state): State<AppState>, Json(req): Json<PmLockRequest>) -> impl IntoResponse {
+	let message = format!("pm_lock:{}:{}:{}", req.owner, req.amount, req.nonce);
+	if let Err(e) = verify_wallet_signature(&req.owner, message.as_bytes(), &req.signature) {
+		return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": e.to_string() })));
+	}
+	match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
+		Ok(true) => {},
+		Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+		Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })) ),
+	}
+	let pm_pid = match Pubkey::from_str(&state.cfg.position_manager_program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
+	let vault_pid = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
+	let owner = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => Pubkey::default() };
+	let mut ixs = build_compute_budget_instructions(1_400_000, 1_000);
+	let pm_ix = match build_instruction_pm_lock(&pm_pid, &vault_pid, &owner, req.amount) { Ok(ix) => ix, Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": e.to_string()}))) };
+	ixs.push(pm_ix);
+	let payer = match load_deployer_keypair(&state.cfg.deployer_keypair_path) { Ok(kp) => kp, Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))) };
+	let recent_blockhash = match state.sol.rpc.get_latest_blockhash().await { Ok(h) => h, Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({"error": format!("blockhash: {e}")}))) };
+	let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&*payer], recent_blockhash);
+	let sig = match send_transaction_with_retries(&state.sol, &tx, 3).await { Ok(s) => s, Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({"error": e.to_string()}))) };
+	let _ = db::insert_transaction(&state.pool, &req.owner, &sig.to_string(), Some(req.amount as i64), "lock").await;
+	let _ = state.notifier.lock_tx.send(serde_json::json!({"owner": req.owner, "amount": req.amount, "signature": sig.to_string()}).to_string());
+	(StatusCode::OK, Json(serde_json::json!({"signature": sig.to_string()})))
+}
+
+#[derive(Deserialize)]
+pub struct PmUnlockRequest { pub owner: String, pub amount: u64, pub nonce: String, pub signature: String }
+
+pub async fn pm_unlock(State(state): State<AppState>, Json(req): Json<PmUnlockRequest>) -> impl IntoResponse {
+	let message = format!("pm_unlock:{}:{}:{}", req.owner, req.amount, req.nonce);
+	if let Err(e) = verify_wallet_signature(&req.owner, message.as_bytes(), &req.signature) {
+		return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": e.to_string() })));
+	}
+	match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
+		Ok(true) => {},
+		Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+		Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })) ),
+	}
+	let pm_pid = match Pubkey::from_str(&state.cfg.position_manager_program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
+	let vault_pid = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
+	let owner = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => Pubkey::default() };
+	let mut ixs = build_compute_budget_instructions(1_400_000, 1_000);
+	let pm_ix = match build_instruction_pm_unlock(&pm_pid, &vault_pid, &owner, req.amount) { Ok(ix) => ix, Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": e.to_string()}))) };
+	ixs.push(pm_ix);
+	let payer = match load_deployer_keypair(&state.cfg.deployer_keypair_path) { Ok(kp) => kp, Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))) };
+	let recent_blockhash = match state.sol.rpc.get_latest_blockhash().await { Ok(h) => h, Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({"error": format!("blockhash: {e}")}))) };
+	let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&*payer], recent_blockhash);
+	let sig = match send_transaction_with_retries(&state.sol, &tx, 3).await { Ok(s) => s, Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({"error": e.to_string()}))) };
+	let _ = db::insert_transaction(&state.pool, &req.owner, &sig.to_string(), Some(req.amount as i64), "unlock").await;
+	let _ = state.notifier.unlock_tx.send(serde_json::json!({"owner": req.owner, "amount": req.amount, "signature": sig.to_string()}).to_string());
+	(StatusCode::OK, Json(serde_json::json!({"signature": sig.to_string()})))
+}
 
