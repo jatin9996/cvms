@@ -4,5 +4,6 @@ pub mod db;
 pub mod error;
 pub mod solana_client;
 pub mod telemetry;
+pub mod auth;
 
 

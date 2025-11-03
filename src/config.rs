@@ -10,6 +10,7 @@ pub struct AppConfig {
 	pub usdt_mint: String,
 	pub deployer_keypair_path: String,
 	pub vault_authority_pubkey: String,
+	pub admin_jwt_secret: String,
 }
 
 impl AppConfig {
@@ -23,6 +24,7 @@ impl AppConfig {
 			usdt_mint: std::env::var("USDT_MINT").unwrap_or_default(),
 			deployer_keypair_path: std::env::var("DEPLOYER_KEYPAIR_PATH").unwrap_or_default(),
 			vault_authority_pubkey: std::env::var("VAULT_AUTHORITY_PUBKEY").unwrap_or_default(),
+			admin_jwt_secret: std::env::var("ADMIN_JWT_SECRET").unwrap_or_default(),
 		}
 	}
 }

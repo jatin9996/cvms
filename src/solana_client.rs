@@ -1,7 +1,16 @@
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Signature, transaction::Transaction};
+use solana_client::nonblocking::rpc_client::SerializableTransaction;
+use solana_sdk::{
+	compute_budget::ComputeBudgetInstruction,
+	instruction::{AccountMeta, Instruction},
+	pubkey::Pubkey,
+	signature::{Keypair, Signature, Signer},
+	system_program,
+	transaction::Transaction,
+};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct SolanaClient {
@@ -22,33 +31,108 @@ pub struct CollateralVault {
 	pub token_mint: String,
 }
 
-// Functions per spec - stubs to be implemented
-pub async fn get_vault_account(_client: &SolanaClient, _vault_pubkey: &Pubkey) -> AppResult<CollateralVault> {
-	Ok(CollateralVault { address: _vault_pubkey.to_string(), owner: String::new(), token_mint: String::new() })
+// Functions per spec - implemented to a generic, program-agnostic baseline
+pub async fn get_vault_account(client: &SolanaClient, vault_pubkey: &Pubkey) -> AppResult<CollateralVault> {
+	let _acc = client
+		.rpc
+		.get_account(vault_pubkey)
+		.await
+		.map_err(|e| AppError::Solana(format!("get_account failed: {e}")))?;
+	Ok(CollateralVault { address: vault_pubkey.to_string(), owner: String::new(), token_mint: String::new() })
 }
 
-pub async fn get_token_balance(_client: &SolanaClient, _token_account_pubkey: &Pubkey) -> AppResult<u64> {
-	Ok(0)
+pub async fn get_token_balance(client: &SolanaClient, token_account_pubkey: &Pubkey) -> AppResult<u64> {
+	let ui = client
+		.rpc
+		.get_token_account_balance(token_account_pubkey)
+		.await
+		.map_err(|e| AppError::Solana(format!("get_token_account_balance failed: {e}")))?;
+	let amount: u64 = ui.amount.parse().unwrap_or(0);
+	Ok(amount)
 }
 
-pub async fn send_transaction(_client: &SolanaClient, _tx: &Transaction) -> AppResult<Signature> {
-	Err(AppError::Solana("send_transaction not implemented".to_string()))
+pub async fn send_transaction(client: &SolanaClient, tx: &Transaction) -> AppResult<Signature> {
+	let sig = client
+		.rpc
+		.send_and_confirm_serialized_transaction(tx)
+		.await
+		.map_err(|e| AppError::Solana(format!("send_and_confirm_transaction failed: {e}")))?;
+	Ok(sig)
 }
 
-pub fn build_instruction_initialize_vault(_user_pubkey: &Pubkey) -> AppResult<Instruction> {
-	Err(AppError::BadRequest("initialize_vault not implemented".to_string()))
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DepositParams {
+	pub program_id: Pubkey,
+	pub user: Pubkey,
+	pub amount: u64,
 }
 
-pub fn build_instruction_deposit(_params: ()) -> AppResult<Instruction> {
-	Err(AppError::BadRequest("deposit not implemented".to_string()))
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WithdrawParams {
+	pub program_id: Pubkey,
+	pub owner: Pubkey,
+	pub amount: u64,
 }
 
-pub fn build_instruction_withdraw(_params: ()) -> AppResult<Instruction> {
-	Err(AppError::BadRequest("withdraw not implemented".to_string()))
+pub fn build_instruction_initialize_vault(program_id: &Pubkey, user_pubkey: &Pubkey) -> AppResult<Instruction> {
+	let accounts = vec![
+		AccountMeta::new(*user_pubkey, true),
+		AccountMeta::new_readonly(system_program::id(), false),
+	];
+	// Generic placeholder data layout: [op=0]
+	let data = vec![0u8];
+	Ok(Instruction { program_id: *program_id, accounts, data })
+}
+
+pub fn build_instruction_deposit(params: &DepositParams) -> AppResult<Instruction> {
+	let accounts = vec![
+		AccountMeta::new(params.user, true),
+	];
+	// Generic placeholder data layout: [op=1 | amount u64 LE]
+	let mut data = vec![1u8];
+	data.extend_from_slice(&params.amount.to_le_bytes());
+	Ok(Instruction { program_id: params.program_id, accounts, data })
+}
+
+pub fn build_instruction_withdraw(params: &WithdrawParams) -> AppResult<Instruction> {
+	let accounts = vec![
+		AccountMeta::new(params.owner, true),
+	];
+	// Generic placeholder data layout: [op=2 | amount u64 LE]
+	let mut data = vec![2u8];
+	data.extend_from_slice(&params.amount.to_le_bytes());
+	Ok(Instruction { program_id: params.program_id, accounts, data })
+}
+
+pub fn build_compute_budget_instructions(units: u32, micro_lamports: u64) -> Vec<Instruction> {
+	vec![
+		ComputeBudgetInstruction::set_compute_unit_limit(units),
+		ComputeBudgetInstruction::set_compute_unit_price(micro_lamports),
+	]
+}
+
+pub fn load_deployer_keypair(path: &str) -> AppResult<Arc<Keypair>> {
+	use solana_sdk::signature::read_keypair_file;
+	let kp = read_keypair_file(path).map_err(|e| AppError::Internal(format!("failed to read keypair: {e}")))?;
+	Ok(Arc::new(kp))
 }
 
 pub async fn subscribe_to_account(_pubkey: Pubkey) -> AppResult<()> {
+	// Placeholder: actual subscription is integrated in ws module to stream updates to clients
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compute_budget_ixs() {
+        let ixs = build_compute_budget_instructions(1_000_000, 1_000);
+        assert_eq!(ixs.len(), 2);
+        assert_eq!(ixs[0].program_id, solana_sdk::compute_budget::id());
+        assert_eq!(ixs[1].program_id, solana_sdk::compute_budget::id());
+    }
 }
 
 
