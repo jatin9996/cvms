@@ -9,7 +9,7 @@ use crate::{
 	error::AppError,
 	solana_client::{
         build_compute_budget_instructions, build_instruction_deposit, build_instruction_initialize_vault,
-        build_instruction_withdraw, build_instruction_withdraw_multisig, load_deployer_keypair, DepositParams, WithdrawParams,
+        build_instruction_withdraw, build_instruction_withdraw_multisig, build_instruction_schedule_timelock, load_deployer_keypair, DepositParams, WithdrawParams,
         fetch_vault_multisig_config, build_partial_withdraw_tx, WithdrawMultisigParams,
 		build_instruction_pm_lock, build_instruction_pm_unlock, send_transaction_with_retries,
 	},
@@ -185,6 +185,56 @@ pub async fn vault_transactions(State(state): State<AppState>, Path(owner): Path
                 "created_at": created_at,
             })).collect();
             (StatusCode::OK, Json(serde_json::json!({ "items": items, "next": null })))
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ScheduleWithdrawRequest { pub owner: String, pub amount: u64, pub duration_seconds: i64, pub nonce: String, pub signature: String }
+
+pub async fn vault_schedule_withdraw(State(state): State<AppState>, Json(req): Json<ScheduleWithdrawRequest>) -> impl IntoResponse {
+    // Verify signature on message: schedule:{owner}:{amount}:{duration}:{nonce}
+    let message = format!("schedule:{}:{}:{}:{}", req.owner, req.amount, req.duration_seconds, req.nonce);
+    if let Err(e) = verify_wallet_signature(&req.owner, message.as_bytes(), &req.signature) {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": e.to_string() })));
+    }
+    if req.duration_seconds < 0 { return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid duration" }))); }
+    match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
+        Ok(true) => {},
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })) ),
+    }
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let owner = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let mut ixs = build_compute_budget_instructions(1_200_000, 1_000);
+    let sched_ix = match build_instruction_schedule_timelock(&crate::solana_client::ScheduleTimelockParams { program_id, owner, amount: req.amount, duration_seconds: req.duration_seconds }) {
+        Ok(ix) => ix,
+        Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() })))
+    };
+    ixs.push(sched_ix);
+    let payer = match load_deployer_keypair(&state.cfg.deployer_keypair_path) { Ok(kp) => kp, Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))) };
+    let recent_blockhash = match state.sol.rpc.get_latest_blockhash().await { Ok(h) => h, Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": format!("blockhash: {e}") }))) };
+    let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&*payer], recent_blockhash);
+    let sig = match crate::solana_client::send_transaction(&state.sol, &tx).await { Ok(s) => s, Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string() }))) };
+
+    // Insert timelock row for UI and cron
+    let unlock_at = time::OffsetDateTime::now_utc() + time::Duration::seconds(req.duration_seconds);
+    let _ = db::timelock_insert(&state.pool, &req.owner, req.amount as i64, unlock_at).await;
+    let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "timelock_scheduled", serde_json::json!({ "amount": req.amount, "unlock_at": unlock_at })).await;
+    let _ = state.notifier.timelock_tx.send(serde_json::json!({ "owner": req.owner, "amount": req.amount, "unlock_at": unlock_at, "signature": sig.to_string() }).to_string());
+    (StatusCode::OK, Json(serde_json::json!({ "signature": sig.to_string(), "unlock_at": unlock_at })))
+}
+
+pub async fn vault_list_timelocks(State(state): State<AppState>, Path(owner): Path<String>) -> impl IntoResponse {
+    match db::timelock_list(&state.pool, &owner).await {
+        Ok(rows) => {
+            let now = time::OffsetDateTime::now_utc();
+            let items: Vec<_> = rows.into_iter().map(|(id, amount, unlock_at, status)| {
+                let remaining = (unlock_at - now).whole_seconds();
+                serde_json::json!({ "id": id, "amount": amount, "unlock_at": unlock_at, "status": status, "remaining_seconds": remaining.max(0) })
+            }).collect();
+            (StatusCode::OK, Json(serde_json::json!({ "items": items })))
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
     }

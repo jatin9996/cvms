@@ -54,6 +54,21 @@ pub async fn init(pool: &PgPool) -> Result<(), sqlx::Error> {
 	.execute(pool)
 	.await?;
 
+	// Timelock schedules per owner
+	sqlx::query(
+		"CREATE TABLE IF NOT EXISTS timelocks (
+			id BIGSERIAL PRIMARY KEY,
+			owner TEXT NOT NULL,
+			amount BIGINT NOT NULL,
+			unlock_at TIMESTAMPTZ NOT NULL,
+			status TEXT NOT NULL DEFAULT 'scheduled',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)"
+	)
+	.execute(pool)
+	.await?;
+
 	// Add new columns if missing
 	sqlx::query("ALTER TABLE vaults ADD COLUMN IF NOT EXISTS locked_balance BIGINT NOT NULL DEFAULT 0")
 		.execute(pool)
@@ -310,6 +325,48 @@ pub async fn insert_audit_log(pool: &PgPool, owner: Option<&str>, action: &str, 
 		.execute(pool)
 		.await?;
 	Ok(())
+}
+
+// -----------------
+// Timelocks
+// -----------------
+pub async fn timelock_insert(pool: &PgPool, owner: &str, amount: i64, unlock_at: time::OffsetDateTime) -> Result<(), sqlx::Error> {
+    sqlx::query("INSERT INTO timelocks (owner, amount, unlock_at) VALUES ($1, $2, $3)")
+        .bind(owner)
+        .bind(amount)
+        .bind(unlock_at)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn timelock_list(pool: &PgPool, owner: &str) -> Result<Vec<(i64, i64, time::OffsetDateTime, String)>, sqlx::Error> {
+    let rows = sqlx::query_as::<_, (i64, i64, time::OffsetDateTime, String)>(
+        "SELECT id, amount, unlock_at, status FROM timelocks WHERE owner = $1 ORDER BY unlock_at ASC"
+    )
+    .bind(owner)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
+pub async fn timelock_mark_status(pool: &PgPool, id: i64, status: &str) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE timelocks SET status = $2, updated_at = NOW() WHERE id = $1")
+        .bind(id)
+        .bind(status)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn timelock_due_within(pool: &PgPool, seconds: i64) -> Result<Vec<(i64, String, i64, time::OffsetDateTime)>, sqlx::Error> {
+    let rows = sqlx::query_as::<_, (i64, String, i64, time::OffsetDateTime)>(
+        "SELECT id, owner, amount, unlock_at FROM timelocks WHERE status = 'scheduled' AND unlock_at <= NOW() + make_interval(secs => $1) ORDER BY unlock_at ASC"
+    )
+    .bind(seconds)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
 }
 
 // -----------------

@@ -140,6 +140,14 @@ pub struct WithdrawMultisigParams {
     pub other_signers: Vec<Pubkey>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduleTimelockParams {
+    pub program_id: Pubkey,
+    pub owner: Pubkey,
+    pub amount: u64,
+    pub duration_seconds: i64,
+}
+
 pub fn build_instruction_initialize_vault(program_id: &Pubkey, user_pubkey: &Pubkey) -> AppResult<Instruction> {
 	let accounts = vec![
 		AccountMeta::new(*user_pubkey, true),
@@ -186,6 +194,18 @@ pub fn build_instruction_withdraw_multisig(params: &WithdrawMultisigParams) -> A
     }
     let mut data = vec![2u8];
     data.extend_from_slice(&params.amount.to_le_bytes());
+    Ok(Instruction { program_id: params.program_id, accounts, data })
+}
+
+pub fn build_instruction_schedule_timelock(params: &ScheduleTimelockParams) -> AppResult<Instruction> {
+    let accounts = vec![
+        AccountMeta::new(params.owner, true),
+        AccountMeta::new_readonly(params.owner, false),
+    ];
+    // Placeholder layout: [op=20 | amount u64 | duration i64]
+    let mut data = vec![20u8];
+    data.extend_from_slice(&params.amount.to_le_bytes());
+    data.extend_from_slice(&params.duration_seconds.to_le_bytes());
     Ok(Instruction { program_id: params.program_id, accounts, data })
 }
 

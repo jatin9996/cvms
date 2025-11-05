@@ -29,6 +29,7 @@ async fn handle_socket(state: AppState, mut socket: WebSocket) {
                             "withdraw_event" => state.notifier.withdraw_tx.subscribe(),
                             "lock_event" => state.notifier.lock_tx.subscribe(),
                             "unlock_event" => state.notifier.unlock_tx.subscribe(),
+                            "timelock_event" => state.notifier.timelock_tx.subscribe(),
                             "vault_balance_update" => state.notifier.vault_balance_tx.subscribe(),
                             "tvl_update" => state.notifier.tvl_tx.subscribe(),
 						"security_alert" => state.notifier.security_tx.subscribe(),
