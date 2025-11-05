@@ -31,6 +31,8 @@ async fn handle_socket(state: AppState, mut socket: WebSocket) {
                             "unlock_event" => state.notifier.unlock_tx.subscribe(),
                             "vault_balance_update" => state.notifier.vault_balance_tx.subscribe(),
                             "tvl_update" => state.notifier.tvl_tx.subscribe(),
+						"security_alert" => state.notifier.security_tx.subscribe(),
+						"analytics_update" => state.notifier.analytics_tx.subscribe(),
                             _ => {
                                 let _ = socket.send(Message::text("unknown topic"));
                                 continue;

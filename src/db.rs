@@ -54,6 +54,14 @@ pub async fn init(pool: &PgPool) -> Result<(), sqlx::Error> {
 	.execute(pool)
 	.await?;
 
+	// Add new columns if missing
+	sqlx::query("ALTER TABLE vaults ADD COLUMN IF NOT EXISTS locked_balance BIGINT NOT NULL DEFAULT 0")
+		.execute(pool)
+		.await?;
+	sqlx::query("ALTER TABLE vaults ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'")
+		.execute(pool)
+		.await?;
+
 	// Reconciliation logs
 	sqlx::query(
 		"CREATE TABLE IF NOT EXISTS reconciliation_logs (
@@ -64,6 +72,33 @@ pub async fn init(pool: &PgPool) -> Result<(), sqlx::Error> {
 			chain_balance BIGINT NOT NULL,
 			discrepancy BIGINT NOT NULL,
 			threshold BIGINT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)"
+	)
+	.execute(pool)
+	.await?;
+
+	// Balance snapshots (hourly/daily)
+	sqlx::query(
+		"CREATE TABLE IF NOT EXISTS balance_snapshots (
+			id BIGSERIAL PRIMARY KEY,
+			owner TEXT NOT NULL,
+			balance BIGINT NOT NULL,
+			locked_balance BIGINT NOT NULL,
+			granularity TEXT NOT NULL,
+			recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)"
+	)
+	.execute(pool)
+	.await?;
+
+	// Audit trail
+	sqlx::query(
+		"CREATE TABLE IF NOT EXISTS audit_trail (
+			id BIGSERIAL PRIMARY KEY,
+			owner TEXT,
+			action TEXT NOT NULL,
+			details JSONB,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)"
 	)
@@ -181,6 +216,47 @@ pub async fn update_vault_snapshot(
 	.bind(withdraw_delta)
 	.execute(pool)
 	.await?;
+	Ok(())
+}
+
+pub async fn get_locked_balance(pool: &PgPool, owner: &str) -> Result<i64, sqlx::Error> {
+	let row = sqlx::query_scalar!("SELECT locked_balance FROM vaults WHERE owner = $1", owner)
+		.fetch_optional(pool)
+		.await?;
+	Ok(row.unwrap_or(0))
+}
+
+pub async fn increment_locked_balance(pool: &PgPool, owner: &str, delta: i64) -> Result<(), sqlx::Error> {
+	sqlx::query(
+		"INSERT INTO vaults (owner, locked_balance)
+		 VALUES ($1, GREATEST($2,0))
+		 ON CONFLICT (owner) DO UPDATE SET locked_balance = GREATEST(vaults.locked_balance + $2, 0), updated_at = NOW()"
+	)
+	.bind(owner)
+	.bind(delta)
+	.execute(pool)
+	.await?;
+	Ok(())
+}
+
+pub async fn insert_balance_snapshot(pool: &PgPool, owner: &str, balance: i64, locked: i64, granularity: &str) -> Result<(), sqlx::Error> {
+	sqlx::query("INSERT INTO balance_snapshots (owner, balance, locked_balance, granularity) VALUES ($1, $2, $3, $4)")
+		.bind(owner)
+		.bind(balance)
+		.bind(locked)
+		.bind(granularity)
+		.execute(pool)
+		.await?;
+	Ok(())
+}
+
+pub async fn insert_audit_log(pool: &PgPool, owner: Option<&str>, action: &str, details: serde_json::Value) -> Result<(), sqlx::Error> {
+	sqlx::query("INSERT INTO audit_trail (owner, action, details) VALUES ($1, $2, $3)")
+		.bind(owner)
+		.bind(action)
+		.bind(details)
+		.execute(pool)
+		.await?;
 	Ok(())
 }
 

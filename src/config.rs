@@ -13,6 +13,7 @@ pub struct AppConfig {
 	pub admin_jwt_secret: String,
 	pub position_manager_program_id: String,
 	pub reconciliation_threshold: i64,
+	pub low_balance_threshold: i64,
 }
 
 impl AppConfig {
@@ -29,6 +30,7 @@ impl AppConfig {
 			admin_jwt_secret: std::env::var("ADMIN_JWT_SECRET").unwrap_or_default(),
 			position_manager_program_id: std::env::var("POSITION_MANAGER_PROGRAM_ID").unwrap_or_default(),
 			reconciliation_threshold: std::env::var("RECONCILIATION_THRESHOLD").ok().and_then(|v| v.parse().ok()).unwrap_or(0),
+			low_balance_threshold: std::env::var("LOW_BALANCE_THRESHOLD").ok().and_then(|v| v.parse().ok()).unwrap_or(0),
 		}
 	}
 }

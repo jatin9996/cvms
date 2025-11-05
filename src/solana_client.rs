@@ -10,6 +10,8 @@ use solana_sdk::{
 	system_program,
 	transaction::Transaction,
 };
+use spl_associated_token_account as spl_ata;
+use spl_token;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -155,6 +157,21 @@ pub fn load_deployer_keypair(path: &str) -> AppResult<Arc<Keypair>> {
 	use solana_sdk::signature::read_keypair_file;
 	let kp = read_keypair_file(path).map_err(|e| AppError::Internal(format!("failed to read keypair: {e}")))?;
 	Ok(Arc::new(kp))
+}
+
+// SPL Token helpers
+pub fn derive_associated_token_address(owner: &Pubkey, mint: &Pubkey) -> Pubkey {
+	spl_ata::get_associated_token_address(owner, mint)
+}
+
+pub fn build_create_ata_instruction(payer: &Pubkey, owner: &Pubkey, mint: &Pubkey) -> Instruction {
+	spl_ata::instruction::create_associated_token_account(
+		payer,
+		owner,
+		mint,
+		&spl_token::id(),
+		&spl_ata::id(),
+	)
 }
 
 pub async fn subscribe_to_account(_pubkey: Pubkey) -> AppResult<()> {

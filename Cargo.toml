@@ -23,19 +23,25 @@ sqlx = { version = "0.7.4", features = ["runtime-tokio", "postgres", "uuid", "ti
 
 # Auth / crypto
 jsonwebtoken = "9"
-ed25519-dalek = { version = "1.0.1", features = ["rand"] }
+ed25519-dalek = { version = "2", default-features = true }
 futures = "0.3"
 bs58 = "0.5"
 base64 = "0.21"
 
 # Solana
-solana-sdk = "1.18"
-solana-client = "1.18"
-solana-transaction-status = "1.18"
+solana-sdk = "1.18.26"
+solana-client = "1.18.26"
+solana-transaction-status = "1.18.26"
 anchor-client = { version = "0.30", optional = true }
 spl-associated-token-account = "2"
-spl-token = "4"
-tower-governor = { version = "0.4", default-features = false, features = ["axum"] }
+spl-token = "4.0.0"
+tower_governor = { version = "0.4", default-features = false, features = ["axum"] }
 
 [features]
 anchor = ["anchor-client"]
+
+[dev-dependencies]
+rand = "0.8"
+
+[patch.crates-io]
+spl-token = "=4.0.0"

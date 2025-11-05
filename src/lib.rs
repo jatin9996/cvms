@@ -8,5 +8,7 @@ pub mod auth;
 pub mod notify;
 pub mod ops;
 pub mod tasks;
+pub mod vault;
+pub mod cpi;
 
 

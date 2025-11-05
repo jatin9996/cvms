@@ -9,6 +9,8 @@ pub struct Notifier {
 	pub unlock_tx: broadcast::Sender<String>,
 	pub vault_balance_tx: broadcast::Sender<String>,
 	pub tvl_tx: broadcast::Sender<String>,
+	pub security_tx: broadcast::Sender<String>,
+	pub analytics_tx: broadcast::Sender<String>,
 }
 
 impl Notifier {
@@ -19,7 +21,9 @@ impl Notifier {
 		let (unlock_tx, _) = broadcast::channel(capacity);
 		let (vault_balance_tx, _) = broadcast::channel(capacity);
 		let (tvl_tx, _) = broadcast::channel(capacity);
-		Arc::new(Self { deposit_tx, withdraw_tx, lock_tx, unlock_tx, vault_balance_tx, tvl_tx })
+		let (security_tx, _) = broadcast::channel(capacity);
+		let (analytics_tx, _) = broadcast::channel(capacity);
+		Arc::new(Self { deposit_tx, withdraw_tx, lock_tx, unlock_tx, vault_balance_tx, tvl_tx, security_tx, analytics_tx })
 	}
 }
 
