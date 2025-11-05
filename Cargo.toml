@@ -32,6 +32,8 @@ sha2 = "0.10"
 base64 = "0.21"
 totp-rs = { version = "5", default-features = false, features = ["otpauth", "gen_secret", "serde_support"] }
 data-encoding = "2"
+borsh = "1"
+solana-program = "1.18.26"
 
 # Solana
 solana-sdk = "1.18.26"

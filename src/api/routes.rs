@@ -18,6 +18,7 @@ use crate::{
         build_instruction_set_withdraw_min_delay, build_instruction_set_withdraw_rate_limit,
         build_instruction_add_withdraw_whitelist, build_instruction_remove_withdraw_whitelist,
         build_instruction_request_withdraw,
+        build_instruction_transfer_collateral, TransferCollateralParams,
 	},
 };
 use crate::{vault::VaultManager, cpi::CPIManager};
@@ -46,7 +47,11 @@ pub async fn vault_initialize(State(state): State<AppState>, Json(req): Json<Ini
         Ok(p) => p,
         Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid user_pubkey" })))
     };
-    let ix = match build_instruction_initialize_vault(&program_id, &user) {
+    let usdt_mint = match Pubkey::from_str(&state.cfg.usdt_mint) {
+        Ok(p) => p,
+        Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid usdt mint" })))
+    };
+    let ix = match build_instruction_initialize_vault(&program_id, &user, &usdt_mint) {
         Ok(ix) => ix,
         Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() })))
     };
@@ -80,8 +85,9 @@ pub async fn vault_deposit(State(state): State<AppState>, Json(req): Json<Deposi
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
     }
 
-    let user = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => Pubkey::default() };
-    let ix = match build_instruction_deposit(&DepositParams { program_id, user, amount: req.amount }) {
+    let owner = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let mint = match Pubkey::from_str(&state.cfg.usdt_mint) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let ix = match build_instruction_deposit(&DepositParams { program_id, owner, mint, amount: req.amount }) {
         Ok(ix) => ix,
         Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() })))
     };
@@ -131,8 +137,9 @@ pub async fn vault_withdraw(State(state): State<AppState>, headers: HeaderMap, J
 
     let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
     let owner = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let mint = match Pubkey::from_str(&state.cfg.usdt_mint) { Ok(p) => p, Err(_) => Pubkey::default() };
     let mut ixs = build_compute_budget_instructions(1_400_000, 1_000);
-    let withdraw_ix = match build_instruction_withdraw(&WithdrawParams { program_id, owner, amount: req.amount }) {
+    let withdraw_ix = match build_instruction_withdraw(&WithdrawParams { program_id, owner, mint, amount: req.amount }) {
         Ok(ix) => ix,
         Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() })))
     };
@@ -149,7 +156,7 @@ pub async fn vault_withdraw(State(state): State<AppState>, headers: HeaderMap, J
     };
     let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&*payer], recent_blockhash);
 
-    let sig = match crate::solana_client::send_transaction(&state.sol, &tx).await {
+    let sig = match send_transaction_with_retries(&state.sol, &tx, 3).await {
         Ok(s) => s,
         Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string() })))
     };
@@ -309,7 +316,8 @@ pub async fn vault_emergency_withdraw(
     }
 
     let mut ixs = build_compute_budget_instructions(1_400_000, 1_000);
-    let em_ix = match build_instruction_emergency_withdraw(&EmergencyWithdrawParams { program_id, authority: payer.pubkey(), owner, amount: req.amount }) {
+    let mint = match Pubkey::from_str(&state.cfg.usdt_mint) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let em_ix = match build_instruction_emergency_withdraw(&EmergencyWithdrawParams { program_id, authority: payer.pubkey(), owner, amount: req.amount }, &mint) {
         Ok(ix) => ix,
         Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() })))
     };
@@ -764,6 +772,47 @@ pub async fn vault_compound_yield(State(state): State<AppState>, Json(req): Json
     });
     let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "yield_compound_request", serde_json::json!({ "compounded_amount": req.compounded_amount, "yield_program": req.yield_program, "nonce": req.nonce })).await;
     (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
+}
+
+// -----------------
+// Internal: transfer_collateral (admin-only)
+// -----------------
+#[derive(Deserialize)]
+pub struct TransferCollateralRequest { pub from_owner: String, pub to_owner: String, pub amount: u64, pub caller_program: Option<String> }
+
+pub async fn internal_transfer_collateral(
+    State(state): State<AppState>,
+    TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+    Json(req): Json<TransferCollateralRequest>,
+) -> impl IntoResponse {
+    // Admin protection
+    let token = auth.token();
+    if state.cfg.admin_jwt_secret.is_empty() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "admin secret not configured" })));
+    }
+    if verify_admin_jwt(token, &state.cfg.admin_jwt_secret).is_err() {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "unauthorized" })));
+    }
+
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid program id" }))) };
+    let from_owner = match Pubkey::from_str(&req.from_owner) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid from_owner" }))) };
+    let to_owner = match Pubkey::from_str(&req.to_owner) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid to_owner" }))) };
+    let mint = match Pubkey::from_str(&state.cfg.usdt_mint) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid usdt mint" }))) };
+    let caller_program = if let Some(cp) = &req.caller_program { match Pubkey::from_str(cp) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid caller_program" }))) } } else {
+        match Pubkey::from_str(&state.cfg.position_manager_program_id) { Ok(p) => p, Err(_) => Pubkey::default() }
+    };
+
+    let mut ixs = build_compute_budget_instructions(1_400_000, 1_000);
+    let ix = match build_instruction_transfer_collateral(&TransferCollateralParams { program_id, caller_program, from_owner, to_owner, mint, amount: req.amount }) { Ok(ix) => ix, Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))) };
+    ixs.push(ix);
+
+    let payer = match load_deployer_keypair(&state.cfg.deployer_keypair_path) { Ok(kp) => kp, Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))) };
+    let recent_blockhash = match state.sol.rpc.get_latest_blockhash().await { Ok(h) => h, Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": format!("blockhash: {e}") }))) };
+    let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&*payer], recent_blockhash);
+    let sig = match send_transaction_with_retries(&state.sol, &tx, 3).await { Ok(s) => s, Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string() }))) };
+
+    let _ = db::insert_audit_log(&state.pool, None, "transfer_collateral", serde_json::json!({ "from_owner": req.from_owner, "to_owner": req.to_owner, "amount": req.amount, "signature": sig.to_string() })).await;
+    (StatusCode::OK, Json(serde_json::json!({ "signature": sig.to_string() })))
 }
 
 pub async fn vault_yield_status(State(state): State<AppState>, Path(owner): Path<String>) -> impl IntoResponse {

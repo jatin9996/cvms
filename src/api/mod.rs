@@ -68,6 +68,7 @@ pub fn router(state: AppState) -> Router {
         .route("/admin/vault-token-account/set", post(routes::admin_set_vault_token_account))
 		.route("/pm/lock", post(routes::pm_lock).route_layer(GovernorLayer::new(governor_conf)))
 		.route("/pm/unlock", post(routes::pm_unlock).route_layer(GovernorLayer::new(governor_conf)))
+		.route("/internal/transfer-collateral", post(routes::internal_transfer_collateral))
 		.route("/ws", get(ws::ws_handler))
         .with_state(state)
 }

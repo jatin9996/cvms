@@ -1,4 +1,4 @@
-use crate::{api::AppState, db, error::{AppError, AppResult}, solana_client::{build_compute_budget_instructions, build_instruction_deposit, build_instruction_initialize_vault, build_instruction_withdraw, DepositParams, WithdrawParams, send_transaction, load_deployer_keypair}};
+use crate::{api::AppState, db, error::{AppError, AppResult}, solana_client::{build_compute_budget_instructions, build_instruction_deposit, build_instruction_initialize_vault, build_instruction_withdraw, DepositParams, WithdrawParams, send_transaction_with_retries, load_deployer_keypair}};
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey, transaction::Transaction};
 
 #[derive(Clone)]
@@ -11,24 +11,27 @@ impl VaultManager {
 
 	pub fn build_initialize_vault_ix(&self, user_pubkey: &Pubkey) -> AppResult<Instruction> {
 		let program_id = Pubkey::from_str(&self.state.cfg.program_id).unwrap_or_default();
-		build_instruction_initialize_vault(&program_id, user_pubkey)
+		let mint = Pubkey::from_str(&self.state.cfg.usdt_mint).unwrap_or_default();
+		build_instruction_initialize_vault(&program_id, user_pubkey, &mint)
 	}
 
 	pub fn build_deposit_ix(&self, owner: &Pubkey, amount: u64) -> AppResult<Instruction> {
 		let program_id = Pubkey::from_str(&self.state.cfg.program_id).unwrap_or_default();
-		let params = DepositParams { program_id, user: *owner, amount };
+		let mint = Pubkey::from_str(&self.state.cfg.usdt_mint).unwrap_or_default();
+		let params = DepositParams { program_id, owner: *owner, mint, amount };
 		build_instruction_deposit(&params)
 	}
 
 	pub async fn submit_withdraw(&self, owner: &Pubkey, amount: u64) -> AppResult<String> {
 		let program_id = Pubkey::from_str(&self.state.cfg.program_id).unwrap_or_default();
 		let mut ixs = build_compute_budget_instructions(1_400_000, 1_000);
-		let wd_ix = build_instruction_withdraw(&WithdrawParams { program_id, owner: *owner, amount })?;
+		let mint = Pubkey::from_str(&self.state.cfg.usdt_mint).unwrap_or_default();
+		let wd_ix = build_instruction_withdraw(&WithdrawParams { program_id, owner: *owner, mint, amount })?;
 		ixs.push(wd_ix);
 		let payer = load_deployer_keypair(&self.state.cfg.deployer_keypair_path)?;
 		let recent_blockhash = self.state.sol.rpc.get_latest_blockhash().await.map_err(|e| AppError::Solana(format!("blockhash: {e}")))?;
 		let tx = Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&*payer], recent_blockhash);
-		let sig = send_transaction(&self.state.sol, &tx).await?;
+		let sig = send_transaction_with_retries(&self.state.sol, &tx, 3).await?;
 		Ok(sig.to_string())
 	}
 

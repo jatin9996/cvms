@@ -40,6 +40,13 @@ pub async fn init(pool: &PgPool) -> Result<(), sqlx::Error> {
 	.execute(pool)
 	.await?;
 
+	// Hot indexes for performance
+	sqlx::query(
+		"CREATE INDEX IF NOT EXISTS idx_transactions_owner_created_at ON transactions(owner, created_at DESC)"
+	)
+	.execute(pool)
+	.await?;
+
 	// Vault snapshots
 	sqlx::query(
 		"CREATE TABLE IF NOT EXISTS vaults (
@@ -65,6 +72,12 @@ pub async fn init(pool: &PgPool) -> Result<(), sqlx::Error> {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)"
+	)
+	.execute(pool)
+	.await?;
+
+	sqlx::query(
+		"CREATE INDEX IF NOT EXISTS idx_timelocks_owner_unlock_at ON timelocks(owner, unlock_at)"
 	)
 	.execute(pool)
 	.await?;

@@ -14,6 +14,8 @@ use spl_associated_token_account as spl_ata;
 use spl_token;
 use std::sync::Arc;
 use sha2::{Digest, Sha256};
+use solana_program::sysvar;
+use borsh::BorshDeserialize;
 
 #[derive(Clone)]
 pub struct SolanaClient {
@@ -120,6 +122,26 @@ fn anchor_discriminator(name: &str) -> [u8; 8] {
 
 // Fetch on-chain multisig config from CollateralVault account
 pub async fn fetch_vault_multisig_config(client: &SolanaClient, owner: &Pubkey, program_id: &Pubkey) -> AppResult<(u8, Vec<Pubkey>)> {
+    #[derive(BorshDeserialize)]
+    struct Head {
+        owner: [u8; 32],
+        token_account: [u8; 32],
+        usdt_mint: [u8; 32],
+        total_balance: u64,
+        locked_balance: u64,
+        available_balance: u64,
+        total_deposited: u64,
+        total_withdrawn: u64,
+        yield_deposited_balance: u64,
+        yield_accrued_balance: u64,
+        last_compounded_at: i64,
+        active_yield_program: [u8; 32],
+        created_at: i64,
+        bump: u8,
+        multisig_threshold: u8,
+        multisig_signers: Vec<[u8; 32]>,
+    }
+
     let (vault_pda, _) = derive_vault_pda(owner, program_id);
     let acc = client
         .rpc
@@ -127,29 +149,11 @@ pub async fn fetch_vault_multisig_config(client: &SolanaClient, owner: &Pubkey, 
         .await
         .map_err(|e| AppError::Solana(format!("get_account failed: {e}")))?;
     let data = acc.data;
-    if data.len() < 134 { // discriminator(8) + fields before vec(122?) + bump + threshold + vec len
-        return Err(AppError::Internal("vault account too small".to_string()));
-    }
-    // Offsets based on Anchor/Borsh layout used by on-chain CollateralVault
-    // discriminator: 0..8
-    // owner: 8..40, token_account: 40..72, usdt_mint: 72..104
-    // totals: 104..136 (u64 * 4), created_at: 136..144, bump: 144..145, threshold: 145..146
-    // Note: actual created_at/bump offsets in on-chain struct are: created_at at 120..128, bump at 128..129, threshold 129..130 per current layout.
-    // We recompute using exact layout from program: use those constants.
-    let threshold_offset = 129usize; // after discriminator(8) + 32*3 + 8*6 + 1 bump
-    let vec_len_offset = 130usize;
-    if data.len() < vec_len_offset + 4 { return Err(AppError::Internal("vault account corrupted".to_string())); }
-    let threshold = data[threshold_offset];
-    let len_bytes = &data[vec_len_offset..vec_len_offset+4];
-    let len = u32::from_le_bytes([len_bytes[0], len_bytes[1], len_bytes[2], len_bytes[3]]) as usize;
-    let mut signers: Vec<Pubkey> = Vec::with_capacity(len);
-    let mut cursor = vec_len_offset + 4;
-    for _ in 0..len {
-        if data.len() < cursor + 32 { return Err(AppError::Internal("vault account truncated".to_string())); }
-        let pk = Pubkey::new(&data[cursor..cursor+32]);
-        signers.push(pk);
-        cursor += 32;
-    }
+    if data.len() < 8 { return Err(AppError::Internal("vault account too small".to_string())); }
+    let mut slice: &[u8] = &data[8..];
+    let head = Head::deserialize(&mut slice).map_err(|_| AppError::Internal("decode vault head failed".to_string()))?;
+    let threshold = head.multisig_threshold;
+    let signers: Vec<Pubkey> = head.multisig_signers.into_iter().map(Pubkey::new_from_array).collect();
     Ok((threshold, signers))
 }
 
@@ -188,16 +192,21 @@ pub async fn send_transaction_with_retries(client: &SolanaClient, tx: &Transacti
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DepositParams {
-	pub program_id: Pubkey,
-	pub user: Pubkey,
-	pub amount: u64,
+    pub program_id: Pubkey,
+    /// Vault owner; also used as authority in single-owner mode
+    pub owner: Pubkey,
+    /// SPL mint for collateral (USDT)
+    pub mint: Pubkey,
+    pub amount: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WithdrawParams {
 	pub program_id: Pubkey,
     /// Vault owner pubkey used for PDA derivation
-	pub owner: Pubkey,
+    pub owner: Pubkey,
+    /// SPL mint for collateral (USDT)
+    pub mint: Pubkey,
 	pub amount: u64,
 }
 
@@ -228,37 +237,58 @@ pub struct EmergencyWithdrawParams {
     pub amount: u64,
 }
 
-pub fn build_instruction_initialize_vault(program_id: &Pubkey, user_pubkey: &Pubkey) -> AppResult<Instruction> {
-	let accounts = vec![
-		AccountMeta::new(*user_pubkey, true),
-		AccountMeta::new_readonly(system_program::id(), false),
-	];
-	// Generic placeholder data layout: [op=0]
-	let data = vec![0u8];
-	Ok(Instruction { program_id: *program_id, accounts, data })
+pub fn build_instruction_initialize_vault(program_id: &Pubkey, user_pubkey: &Pubkey, usdt_mint: &Pubkey) -> AppResult<Instruction> {
+    let (vault_pda, _) = derive_vault_pda(user_pubkey, program_id);
+    let vault_ata = derive_associated_token_address(&vault_pda, usdt_mint);
+
+    let accounts = vec![
+        AccountMeta::new(*user_pubkey, true),
+        AccountMeta::new(vault_pda, false),
+        AccountMeta::new(vault_ata, false),
+        AccountMeta::new_readonly(*usdt_mint, false),
+        AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(spl_token::id(), false),
+        AccountMeta::new_readonly(spl_ata::id(), false),
+        AccountMeta::new_readonly(sysvar::rent::id(), false),
+    ];
+    let data = anchor_discriminator("initialize_vault").to_vec();
+    Ok(Instruction { program_id: *program_id, accounts, data })
 }
 
 pub fn build_instruction_deposit(params: &DepositParams) -> AppResult<Instruction> {
-	let accounts = vec![
-		AccountMeta::new(params.user, true),
-	];
-	// Generic placeholder data layout: [op=1 | amount u64 LE]
-	let mut data = vec![1u8];
-	data.extend_from_slice(&params.amount.to_le_bytes());
-	Ok(Instruction { program_id: params.program_id, accounts, data })
+    let (vault_pda, _) = derive_vault_pda(&params.owner, &params.program_id);
+    let user_ata = derive_associated_token_address(&params.owner, &params.mint);
+    let vault_ata = derive_associated_token_address(&vault_pda, &params.mint);
+
+    let accounts = vec![
+        AccountMeta::new(params.owner, true),
+        AccountMeta::new_readonly(params.owner, false),
+        AccountMeta::new(vault_pda, false),
+        AccountMeta::new(user_ata, false),
+        AccountMeta::new(vault_ata, false),
+        AccountMeta::new_readonly(spl_token::id(), false),
+    ];
+    let mut data = anchor_discriminator("deposit").to_vec();
+    data.extend_from_slice(&params.amount.to_le_bytes());
+    Ok(Instruction { program_id: params.program_id, accounts, data })
 }
 
 pub fn build_instruction_withdraw(params: &WithdrawParams) -> AppResult<Instruction> {
-	let accounts = vec![
-        // authority signer (one of multisig signers or owner)
+    let (vault_pda, _) = derive_vault_pda(&params.owner, &params.program_id);
+    let user_ata = derive_associated_token_address(&params.owner, &params.mint);
+    let vault_ata = derive_associated_token_address(&vault_pda, &params.mint);
+
+    let accounts = vec![
         AccountMeta::new(params.owner, true),
-        // owner as readonly for PDA seed (placeholder in this scaffold)
         AccountMeta::new_readonly(params.owner, false),
-	];
-	// Generic placeholder data layout: [op=2 | amount u64 LE]
-	let mut data = vec![2u8];
-	data.extend_from_slice(&params.amount.to_le_bytes());
-	Ok(Instruction { program_id: params.program_id, accounts, data })
+        AccountMeta::new(vault_pda, false),
+        AccountMeta::new(vault_ata, false),
+        AccountMeta::new(user_ata, false),
+        AccountMeta::new_readonly(spl_token::id(), false),
+    ];
+    let mut data = anchor_discriminator("withdraw").to_vec();
+    data.extend_from_slice(&params.amount.to_le_bytes());
+    Ok(Instruction { program_id: params.program_id, accounts, data })
 }
 
 pub fn build_instruction_withdraw_multisig(params: &WithdrawMultisigParams) -> AppResult<Instruction> {
@@ -272,7 +302,7 @@ pub fn build_instruction_withdraw_multisig(params: &WithdrawMultisigParams) -> A
             accounts.push(AccountMeta::new_readonly(*s, true));
         }
     }
-    let mut data = vec![2u8];
+    let mut data = anchor_discriminator("withdraw").to_vec();
     data.extend_from_slice(&params.amount.to_le_bytes());
     Ok(Instruction { program_id: params.program_id, accounts, data })
 }
@@ -349,16 +379,21 @@ pub fn build_instruction_request_withdraw(program_id: &Pubkey, owner: &Pubkey, a
     Ok(Instruction { program_id: *program_id, accounts, data })
 }
 
-pub fn build_instruction_emergency_withdraw(params: &EmergencyWithdrawParams) -> AppResult<Instruction> {
-    // Accounts: authority signer, owner (readonly), vault_authority PDA (readonly)
-    let (vault_authority, _bump) = derive_vault_authority_pda(&params.program_id);
+pub fn build_instruction_emergency_withdraw(params: &EmergencyWithdrawParams, mint: &Pubkey) -> AppResult<Instruction> {
+    let (vault_pda, _bump) = derive_vault_pda(&params.owner, &params.program_id);
+    let (vault_authority, _abump) = derive_vault_authority_pda(&params.program_id);
+    let vault_ata = derive_associated_token_address(&vault_pda, mint);
+    let user_ata = derive_associated_token_address(&params.owner, mint);
     let accounts = vec![
         AccountMeta::new(params.authority, true),
         AccountMeta::new_readonly(params.owner, false),
+        AccountMeta::new(vault_pda, false),
         AccountMeta::new_readonly(vault_authority, false),
+        AccountMeta::new(vault_ata, false),
+        AccountMeta::new(user_ata, false),
+        AccountMeta::new_readonly(spl_token::id(), false),
     ];
-    // Placeholder layout: [op=30 | amount u64]
-    let mut data = vec![30u8];
+    let mut data = anchor_discriminator("emergency_withdraw").to_vec();
     data.extend_from_slice(&params.amount.to_le_bytes());
     Ok(Instruction { program_id: params.program_id, accounts, data })
 }
@@ -388,38 +423,82 @@ pub struct CompoundYieldParams {
 }
 
 pub fn build_instruction_yield_deposit(params: &YieldDepositParams) -> AppResult<Instruction> {
+    let (vault_pda, _bump) = derive_vault_pda(&params.owner, &params.program_id);
+    let (va, _abump) = derive_vault_authority_pda(&params.program_id);
     let accounts = vec![
         AccountMeta::new(params.owner, true),
         AccountMeta::new_readonly(params.owner, false),
+        AccountMeta::new(vault_pda, false),
+        AccountMeta::new_readonly(va, false),
         AccountMeta::new_readonly(params.yield_program, false),
     ];
-    // Placeholder op code: 40 | amount u64 LE
-    let mut data = vec![40u8];
+    let mut data = anchor_discriminator("yield_deposit").to_vec();
     data.extend_from_slice(&params.amount.to_le_bytes());
     Ok(Instruction { program_id: params.program_id, accounts, data })
 }
 
 pub fn build_instruction_yield_withdraw(params: &YieldWithdrawParams) -> AppResult<Instruction> {
+    let (vault_pda, _bump) = derive_vault_pda(&params.owner, &params.program_id);
+    let (va, _abump) = derive_vault_authority_pda(&params.program_id);
     let accounts = vec![
         AccountMeta::new(params.owner, true),
         AccountMeta::new_readonly(params.owner, false),
+        AccountMeta::new(vault_pda, false),
+        AccountMeta::new_readonly(va, false),
         AccountMeta::new_readonly(params.yield_program, false),
     ];
-    // Placeholder op code: 41 | amount u64 LE
-    let mut data = vec![41u8];
+    let mut data = anchor_discriminator("yield_withdraw").to_vec();
     data.extend_from_slice(&params.amount.to_le_bytes());
     Ok(Instruction { program_id: params.program_id, accounts, data })
 }
 
 pub fn build_instruction_compound_yield(params: &CompoundYieldParams) -> AppResult<Instruction> {
+    let (vault_pda, _bump) = derive_vault_pda(&params.owner, &params.program_id);
+    let (va, _abump) = derive_vault_authority_pda(&params.program_id);
     let accounts = vec![
         AccountMeta::new(params.owner, true),
         AccountMeta::new_readonly(params.owner, false),
+        AccountMeta::new(vault_pda, false),
+        AccountMeta::new_readonly(va, false),
         AccountMeta::new_readonly(params.yield_program, false),
     ];
-    // Placeholder op code: 42 | compounded_amount u64 LE
-    let mut data = vec![42u8];
+    let mut data = anchor_discriminator("compound_yield").to_vec();
     data.extend_from_slice(&params.compounded_amount.to_le_bytes());
+    Ok(Instruction { program_id: params.program_id, accounts, data })
+}
+
+// -----------------
+// Transfer collateral (internal settlements/liquidations)
+// -----------------
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransferCollateralParams {
+    pub program_id: Pubkey,
+    /// The allowlisted program id to pass as caller_program (e.g., position manager)
+    pub caller_program: Pubkey,
+    pub from_owner: Pubkey,
+    pub to_owner: Pubkey,
+    pub mint: Pubkey,
+    pub amount: u64,
+}
+
+pub fn build_instruction_transfer_collateral(params: &TransferCollateralParams) -> AppResult<Instruction> {
+    let (from_vault, _) = derive_vault_pda(&params.from_owner, &params.program_id);
+    let (to_vault, _) = derive_vault_pda(&params.to_owner, &params.program_id);
+    let from_vault_ata = derive_associated_token_address(&from_vault, &params.mint);
+    let to_vault_ata = derive_associated_token_address(&to_vault, &params.mint);
+    let (va, _) = derive_vault_authority_pda(&params.program_id);
+    let accounts = vec![
+        AccountMeta::new_readonly(params.caller_program, false),
+        AccountMeta::new_readonly(va, false),
+        AccountMeta::new_readonly(solana_program::sysvar::instructions::ID, false),
+        AccountMeta::new(from_vault, false),
+        AccountMeta::new(to_vault, false),
+        AccountMeta::new(from_vault_ata, false),
+        AccountMeta::new(to_vault_ata, false),
+        AccountMeta::new_readonly(spl_token::id(), false),
+    ];
+    let mut data = anchor_discriminator("transfer_collateral").to_vec();
+    data.extend_from_slice(&params.amount.to_le_bytes());
     Ok(Instruction { program_id: params.program_id, accounts, data })
 }
 
