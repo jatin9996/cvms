@@ -1,4 +1,4 @@
-use axum::{extract::{Path, State, TypedHeader}, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::{Path, State, TypedHeader}, http::{StatusCode, HeaderMap}, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
 
@@ -15,6 +15,9 @@ use crate::{
         build_instruction_emergency_withdraw, EmergencyWithdrawParams,
         build_instruction_yield_deposit, build_instruction_yield_withdraw, build_instruction_compound_yield,
         YieldDepositParams, YieldWithdrawParams, CompoundYieldParams,
+        build_instruction_set_withdraw_min_delay, build_instruction_set_withdraw_rate_limit,
+        build_instruction_add_withdraw_whitelist, build_instruction_remove_withdraw_whitelist,
+        build_instruction_request_withdraw,
 	},
 };
 use crate::{vault::VaultManager, cpi::CPIManager};
@@ -96,7 +99,7 @@ pub async fn vault_deposit(State(state): State<AppState>, Json(req): Json<Deposi
 #[derive(Deserialize)]
 pub struct WithdrawRequest { pub owner: String, pub amount: u64, pub nonce: String, pub signature: String }
 
-pub async fn vault_withdraw(State(state): State<AppState>, Json(req): Json<WithdrawRequest>) -> impl IntoResponse {
+pub async fn vault_withdraw(State(state): State<AppState>, headers: HeaderMap, Json(req): Json<WithdrawRequest>) -> impl IntoResponse {
     // Verify wallet signature on message: withdraw:{owner}:{amount}:{nonce}
     let message = format!("withdraw:{}:{}:{}", req.owner, req.amount, req.nonce);
     if let Err(e) = verify_wallet_signature(&req.owner, message.as_bytes(), &req.signature) {
@@ -110,6 +113,20 @@ pub async fn vault_withdraw(State(state): State<AppState>, Json(req): Json<Withd
         Ok(true) => {},
         Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    }
+
+    // Enforce 2FA if enabled for owner
+    if let Ok(Some((secret, enabled))) = db::twofa_get(&state.pool, &req.owner).await {
+        if enabled {
+            // Expect client to include header X-2FA-CODE
+            if let Some(val) = headers.get("x-2fa-code").and_then(|v| v.to_str().ok()) {
+                if !crate::security::verify_totp(&secret, val) {
+                    return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "invalid 2fa code" })));
+                }
+            } else {
+                return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "2fa code required" })));
+            }
+        }
     }
 
     let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
@@ -760,11 +777,236 @@ pub async fn vault_yield_status(State(state): State<AppState>, Path(owner): Path
         list.push(serde_json::json!({ "name": protocol, "apy": apy }));
     }
     let (selected, projected_apr) = match best { Some((p, a)) => (Some(p.to_string()), a), None => (None, 0.0) };
+
+    // On-chain yield balances
+    let mut yield_deposited = 0u64;
+    let mut yield_accrued = 0u64;
+    let mut active_program: Option<String> = None;
+    if let (Ok(program_id), Ok(owner_pk)) = (Pubkey::from_str(&state.cfg.program_id), Pubkey::from_str(&owner)) {
+        if let Ok(snap) = crate::solana_client::fetch_vault_yield_info(&state.sol, &owner_pk, &program_id).await {
+            yield_deposited = snap.yield_deposited_balance;
+            yield_accrued = snap.yield_accrued_balance;
+            if snap.active_yield_program != Pubkey::default() {
+                active_program = Some(snap.active_yield_program.to_string());
+            }
+        }
+    }
+
     (StatusCode::OK, Json(serde_json::json!({
         "owner": owner,
         "protocols": list,
         "selected": selected,
         "projected_apr": projected_apr,
+        "vault": {
+            "yield_deposited_balance": yield_deposited,
+            "yield_accrued_balance": yield_accrued,
+            "active_yield_program": active_program,
+        }
     })))
+}
+
+// -----------------
+// Withdraw policy & whitelist admin
+// -----------------
+
+#[derive(Deserialize)]
+pub struct AdminWhitelistReq { pub owner: String, pub address: String }
+
+pub async fn admin_withdraw_whitelist_add(State(state): State<AppState>, Json(req): Json<AdminWhitelistReq>) -> impl IntoResponse {
+    if Pubkey::from_str(&req.owner).is_err() || Pubkey::from_str(&req.address).is_err() {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid pubkey(s)" })));
+    }
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid program id" }))) };
+    let owner = Pubkey::from_str(&req.owner).unwrap();
+    let address = Pubkey::from_str(&req.address).unwrap();
+    let ix = match build_instruction_add_withdraw_whitelist(&program_id, &owner, &address) { Ok(ix) => ix, Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))) };
+    let payload = serde_json::json!({
+        "program_id": ix.program_id.to_string(),
+        "accounts": ix.accounts.iter().map(|a| serde_json::json!({ "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable })).collect::<Vec<_>>(),
+        "data": base64::encode(ix.data),
+    });
+    let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "whitelist_add_requested", serde_json::json!({ "address": req.address })).await;
+    (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
+}
+
+pub async fn admin_withdraw_whitelist_remove(State(state): State<AppState>, Json(req): Json<AdminWhitelistReq>) -> impl IntoResponse {
+    if Pubkey::from_str(&req.owner).is_err() || Pubkey::from_str(&req.address).is_err() {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid pubkey(s)" })));
+    }
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid program id" }))) };
+    let owner = Pubkey::from_str(&req.owner).unwrap();
+    let address = Pubkey::from_str(&req.address).unwrap();
+    let ix = match build_instruction_remove_withdraw_whitelist(&program_id, &owner, &address) { Ok(ix) => ix, Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))) };
+    let payload = serde_json::json!({
+        "program_id": ix.program_id.to_string(),
+        "accounts": ix.accounts.iter().map(|a| serde_json::json!({ "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable })).collect::<Vec<_>>(),
+        "data": base64::encode(ix.data),
+    });
+    let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "whitelist_remove_requested", serde_json::json!({ "address": req.address })).await;
+    (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
+}
+
+#[derive(Deserialize)]
+pub struct AdminMinDelayReq { pub owner: String, pub seconds: i64 }
+
+pub async fn admin_withdraw_min_delay_set(State(state): State<AppState>, Json(req): Json<AdminMinDelayReq>) -> impl IntoResponse {
+    if Pubkey::from_str(&req.owner).is_err() { return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid owner" }))); }
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid program id" }))) };
+    let owner = Pubkey::from_str(&req.owner).unwrap();
+    let ix = match build_instruction_set_withdraw_min_delay(&program_id, &owner, req.seconds) { Ok(ix) => ix, Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))) };
+    let payload = serde_json::json!({
+        "program_id": ix.program_id.to_string(),
+        "accounts": ix.accounts.iter().map(|a| serde_json::json!({ "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable })).collect::<Vec<_>>(),
+        "data": base64::encode(ix.data),
+    });
+    let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "min_delay_set_requested", serde_json::json!({ "seconds": req.seconds })).await;
+    (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
+}
+
+#[derive(Deserialize)]
+pub struct AdminRateLimitReq { pub owner: String, pub window_seconds: u32, pub max_amount: u64 }
+
+pub async fn admin_withdraw_rate_limit_set(State(state): State<AppState>, Json(req): Json<AdminRateLimitReq>) -> impl IntoResponse {
+    if Pubkey::from_str(&req.owner).is_err() { return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid owner" }))); }
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid program id" }))) };
+    let owner = Pubkey::from_str(&req.owner).unwrap();
+    let ix = match build_instruction_set_withdraw_rate_limit(&program_id, &owner, req.window_seconds, req.max_amount) { Ok(ix) => ix, Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))) };
+    let payload = serde_json::json!({
+        "program_id": ix.program_id.to_string(),
+        "accounts": ix.accounts.iter().map(|a| serde_json::json!({ "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable })).collect::<Vec<_>>(),
+        "data": base64::encode(ix.data),
+    });
+    let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "rate_limit_set_requested", serde_json::json!({ "window_seconds": req.window_seconds, "max_amount": req.max_amount })).await;
+    (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
+}
+
+// -----------------
+// 2FA
+// -----------------
+#[derive(Deserialize)]
+pub struct TwoFASetupReq { pub owner: String, pub secret: Option<String> }
+
+#[derive(Deserialize)]
+pub struct TwoFAVerifyReq { pub owner: String, pub code: String }
+
+pub async fn twofa_setup(State(state): State<AppState>, Json(req): Json<TwoFASetupReq>) -> impl IntoResponse {
+    if Pubkey::from_str(&req.owner).is_err() { return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid owner" }))); }
+    let secret = req.secret.unwrap_or_else(|| "".to_string());
+    if secret.is_empty() { return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "missing secret" }))); }
+    if let Err(e) = db::twofa_upsert(&state.pool, &req.owner, &secret, false).await { return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))); }
+    (StatusCode::OK, Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn twofa_verify(State(state): State<AppState>, Json(req): Json<TwoFAVerifyReq>) -> impl IntoResponse {
+    if Pubkey::from_str(&req.owner).is_err() { return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid owner" }))); }
+    let row = match db::twofa_get(&state.pool, &req.owner).await { Ok(s) => s, Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))) };
+    let (secret, _enabled) = match row { Some(r) => r, None => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "2fa not set up" }))) };
+    // Lightweight TOTP validation using totp-rs (base32 secret assumed)
+    match crate::security::verify_totp(&secret, &req.code) {
+        true => {
+            let _ = db::twofa_upsert(&state.pool, &req.owner, &secret, true).await;
+            (StatusCode::OK, Json(serde_json::json!({ "ok": true })))
+        }
+        false => (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "invalid code" })))
+    }
+}
+
+// -----------------
+// Limits & analytics
+// -----------------
+pub async fn vault_limits(State(state): State<AppState>, Path(owner): Path<String>) -> impl IntoResponse {
+    // Derive current usage from recent transactions (last 24h) as a mirror
+    let since = time::OffsetDateTime::now_utc() - time::Duration::hours(24);
+    let rows = sqlx::query_as::<_, (i64, String, Option<i64>, String, time::OffsetDateTime)>(
+        "SELECT id, signature, amount, kind, created_at FROM transactions WHERE owner = $1 AND kind = 'withdraw' AND created_at >= $2"
+    )
+    .bind(&owner)
+    .bind(since)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+    let used: i64 = rows.iter().map(|(_,_,amt,_,_)| amt.unwrap_or(0)).sum();
+    (StatusCode::OK, Json(serde_json::json!({ "window_seconds": 86400, "used": used, "limit": null })))
+}
+
+pub async fn analytics_tvl_series(State(state): State<AppState>) -> impl IntoResponse {
+    // Aggregate transactions by day to build series
+    let rows = sqlx::query!(
+        "SELECT date_trunc('day', created_at) AS day, SUM(CASE WHEN kind = 'deposit' THEN amount ELSE -amount END) AS delta FROM transactions GROUP BY 1 ORDER BY 1 ASC"
+    ).fetch_all(&state.pool).await;
+    match rows {
+        Ok(rs) => {
+            let mut tvl = 0i64;
+            let series: Vec<_> = rs.into_iter().map(|r| {
+                let d = r.day.unwrap();
+                let delta = r.delta.unwrap_or(0);
+                tvl += delta;
+                serde_json::json!({ "t": d, "tvl": tvl })
+            }).collect();
+            (StatusCode::OK, Json(serde_json::json!({ "series": series })))
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
+    }
+}
+
+pub async fn analytics_distribution(State(state): State<AppState>) -> impl IntoResponse {
+    let rows = sqlx::query!("SELECT total_balance FROM vaults").fetch_all(&state.pool).await;
+    match rows {
+        Ok(rs) => {
+            let mut buckets = vec![0u64; 10];
+            for r in rs.into_iter() {
+                let v = (r.total_balance.unwrap_or(0) as u64);
+                let idx = std::cmp::min(9, (v as f64).log10().floor().max(0.0) as usize);
+                buckets[idx] += 1;
+            }
+            (StatusCode::OK, Json(serde_json::json!({ "buckets": buckets })))
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
+    }
+}
+
+pub async fn analytics_utilization(State(state): State<AppState>) -> impl IntoResponse {
+    let rows = sqlx::query!("SELECT total_balance, locked_balance FROM vaults").fetch_all(&state.pool).await;
+    match rows {
+        Ok(rs) => {
+            let mut total: i128 = 0;
+            let mut locked: i128 = 0;
+            for r in rs.into_iter() {
+                total += r.total_balance.unwrap_or(0) as i128;
+                locked += r.locked_balance.unwrap_or(0) as i128;
+            }
+            let utilization = if total > 0 { (locked as f64) / (total as f64) } else { 0.0 };
+            (StatusCode::OK, Json(serde_json::json!({ "utilization": utilization })))
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
+    }
+}
+
+// -----------------
+// Min-delay withdraw request (on-chain request flow)
+// -----------------
+#[derive(Deserialize)]
+pub struct RequestWithdrawReq { pub owner: String, pub amount: u64, pub nonce: String, pub signature: String }
+
+pub async fn vault_request_withdraw(State(state): State<AppState>, Json(req): Json<RequestWithdrawReq>) -> impl IntoResponse {
+    let message = format!("request_withdraw:{}:{}:{}", req.owner, req.amount, req.nonce);
+    if let Err(e) = verify_wallet_signature(&req.owner, message.as_bytes(), &req.signature) {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": e.to_string() })));
+    }
+    match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
+        Ok(true) => {} ,
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
+    }
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid program id" }))) };
+    let owner = Pubkey::from_str(&req.owner).unwrap();
+    let ix = match build_instruction_request_withdraw(&program_id, &owner, req.amount) { Ok(ix) => ix, Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))) };
+    let payload = serde_json::json!({
+        "program_id": ix.program_id.to_string(),
+        "accounts": ix.accounts.iter().map(|a| serde_json::json!({ "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable })).collect::<Vec<_>>(),
+        "data": base64::encode(ix.data),
+    });
+    let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "withdraw_request_created", serde_json::json!({ "amount": req.amount })).await;
+    (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
 }
 

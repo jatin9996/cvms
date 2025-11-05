@@ -26,6 +26,8 @@ pub async fn run_timelock_cron(state: AppState, notifier: std::sync::Arc<Notifie
                         "unlock_at": unlock_at,
                         "kind": "available",
                     }).to_string());
+                // Optional: auto-execute withdraw transaction (best-effort)
+                // This requires an admin payer; omitted here for safety
                 }
             }
         }

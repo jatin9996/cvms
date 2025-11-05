@@ -13,6 +13,7 @@ use solana_sdk::{
 use spl_associated_token_account as spl_ata;
 use spl_token;
 use std::sync::Arc;
+use sha2::{Digest, Sha256};
 
 #[derive(Clone)]
 pub struct SolanaClient {
@@ -33,6 +34,17 @@ pub struct CollateralVault {
 	pub token_mint: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultOnchainSnapshot {
+    pub owner: Pubkey,
+    pub total_balance: u64,
+    pub locked_balance: u64,
+    pub available_balance: u64,
+    pub yield_deposited_balance: u64,
+    pub yield_accrued_balance: u64,
+    pub active_yield_program: Pubkey,
+}
+
 // Functions per spec - implemented to a generic, program-agnostic baseline
 pub async fn get_vault_account(client: &SolanaClient, vault_pubkey: &Pubkey) -> AppResult<CollateralVault> {
 	let _acc = client
@@ -43,6 +55,51 @@ pub async fn get_vault_account(client: &SolanaClient, vault_pubkey: &Pubkey) -> 
 	Ok(CollateralVault { address: vault_pubkey.to_string(), owner: String::new(), token_mint: String::new() })
 }
 
+pub async fn fetch_vault_yield_info(client: &SolanaClient, owner: &Pubkey, program_id: &Pubkey) -> AppResult<VaultOnchainSnapshot> {
+    let (vault_pda, _) = derive_vault_pda(owner, program_id);
+    let acc = client.rpc.get_account(&vault_pda).await.map_err(|e| AppError::Solana(format!("get_account failed: {e}")))?;
+    let data = acc.data;
+    if data.len() < 8 + 32*3 + 8*11 + 32 + 8 + 1 + 1 { // coarse length check
+        return Err(AppError::Internal("vault account too small".to_string()));
+    }
+    let mut cursor = 8usize; // skip discriminator
+    let owner_pk = Pubkey::new(&data[cursor..cursor+32]); cursor += 32;
+    // token_account
+    cursor += 32;
+    // usdt_mint
+    cursor += 32;
+    let mut read_u64 = |cur: &mut usize| -> u64 {
+        let v = u64::from_le_bytes(data[*cur..*cur+8].try_into().unwrap());
+        *cur += 8; v
+    };
+    let total_balance = read_u64(&mut cursor);
+    let locked_balance = read_u64(&mut cursor);
+    let available_balance = read_u64(&mut cursor);
+    // totals
+    cursor += 8; // total_deposited
+    cursor += 8; // total_withdrawn
+    let yield_deposited_balance = read_u64(&mut cursor);
+    let yield_accrued_balance = read_u64(&mut cursor);
+    // last_compounded_at (i64)
+    cursor += 8;
+    let active_yield_program = Pubkey::new(&data[cursor..cursor+32]); cursor += 32;
+    // created_at (i64)
+    cursor += 8;
+    // bump
+    cursor += 1;
+    // multisig_threshold
+    cursor += 1;
+    Ok(VaultOnchainSnapshot {
+        owner: owner_pk,
+        total_balance,
+        locked_balance,
+        available_balance,
+        yield_deposited_balance,
+        yield_accrued_balance,
+        active_yield_program,
+    })
+}
+
 // Derive vault PDA using seeds: [b"vault", owner]
 pub fn derive_vault_pda(owner: &Pubkey, program_id: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"vault", owner.as_ref()], program_id)
@@ -50,6 +107,15 @@ pub fn derive_vault_pda(owner: &Pubkey, program_id: &Pubkey) -> (Pubkey, u8) {
 
 pub fn derive_vault_authority_pda(program_id: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"vault_authority"], program_id)
+}
+
+fn anchor_discriminator(name: &str) -> [u8; 8] {
+    let mut hasher = Sha256::new();
+    hasher.update(format!("global:{}", name));
+    let hash = hasher.finalize();
+    let mut disc = [0u8; 8];
+    disc.copy_from_slice(&hash[..8]);
+    disc
 }
 
 // Fetch on-chain multisig config from CollateralVault account
@@ -223,6 +289,66 @@ pub fn build_instruction_schedule_timelock(params: &ScheduleTimelockParams) -> A
     Ok(Instruction { program_id: params.program_id, accounts, data })
 }
 
+// -----------------
+// Withdraw policy & requests (Anchor discriminators)
+// -----------------
+
+pub fn build_instruction_set_withdraw_min_delay(program_id: &Pubkey, owner: &Pubkey, seconds: i64) -> AppResult<Instruction> {
+    let (vault_pda, _bump) = derive_vault_pda(owner, program_id);
+    let accounts = vec![
+        AccountMeta::new(*owner, true),
+        AccountMeta::new(vault_pda, false),
+    ];
+    let mut data = anchor_discriminator("set_withdraw_min_delay").to_vec();
+    data.extend_from_slice(&seconds.to_le_bytes());
+    Ok(Instruction { program_id: *program_id, accounts, data })
+}
+
+pub fn build_instruction_set_withdraw_rate_limit(program_id: &Pubkey, owner: &Pubkey, window_seconds: u32, max_amount: u64) -> AppResult<Instruction> {
+    let (vault_pda, _bump) = derive_vault_pda(owner, program_id);
+    let accounts = vec![
+        AccountMeta::new(*owner, true),
+        AccountMeta::new(vault_pda, false),
+    ];
+    let mut data = anchor_discriminator("set_withdraw_rate_limit").to_vec();
+    data.extend_from_slice(&window_seconds.to_le_bytes());
+    data.extend_from_slice(&max_amount.to_le_bytes());
+    Ok(Instruction { program_id: *program_id, accounts, data })
+}
+
+pub fn build_instruction_add_withdraw_whitelist(program_id: &Pubkey, owner: &Pubkey, address: &Pubkey) -> AppResult<Instruction> {
+    let (vault_pda, _bump) = derive_vault_pda(owner, program_id);
+    let accounts = vec![
+        AccountMeta::new(*owner, true),
+        AccountMeta::new(vault_pda, false),
+    ];
+    let mut data = anchor_discriminator("add_withdraw_whitelist").to_vec();
+    data.extend_from_slice(address.as_ref());
+    Ok(Instruction { program_id: *program_id, accounts, data })
+}
+
+pub fn build_instruction_remove_withdraw_whitelist(program_id: &Pubkey, owner: &Pubkey, address: &Pubkey) -> AppResult<Instruction> {
+    let (vault_pda, _bump) = derive_vault_pda(owner, program_id);
+    let accounts = vec![
+        AccountMeta::new(*owner, true),
+        AccountMeta::new(vault_pda, false),
+    ];
+    let mut data = anchor_discriminator("remove_withdraw_whitelist").to_vec();
+    data.extend_from_slice(address.as_ref());
+    Ok(Instruction { program_id: *program_id, accounts, data })
+}
+
+pub fn build_instruction_request_withdraw(program_id: &Pubkey, owner: &Pubkey, amount: u64) -> AppResult<Instruction> {
+    let (vault_pda, _bump) = derive_vault_pda(owner, program_id);
+    let accounts = vec![
+        AccountMeta::new(*owner, true),
+        AccountMeta::new(vault_pda, false),
+    ];
+    let mut data = anchor_discriminator("request_withdraw").to_vec();
+    data.extend_from_slice(&amount.to_le_bytes());
+    Ok(Instruction { program_id: *program_id, accounts, data })
+}
+
 pub fn build_instruction_emergency_withdraw(params: &EmergencyWithdrawParams) -> AppResult<Instruction> {
     // Accounts: authority signer, owner (readonly), vault_authority PDA (readonly)
     let (vault_authority, _bump) = derive_vault_authority_pda(&params.program_id);
@@ -368,6 +494,46 @@ pub fn build_create_ata_instruction(payer: &Pubkey, owner: &Pubkey, mint: &Pubke
 		&spl_token::id(),
 		&spl_ata::id(),
 	)
+}
+
+// Governance: yield whitelist/risk control (placeholders; program must align with these op codes)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AddYieldProgramParams { pub program_id: Pubkey, pub governance: Pubkey, pub yield_program: Pubkey }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoveYieldProgramParams { pub program_id: Pubkey, pub governance: Pubkey, pub yield_program: Pubkey }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetRiskLevelParams { pub program_id: Pubkey, pub governance: Pubkey, pub risk_level: u8 }
+
+pub fn build_instruction_add_yield_program(params: &AddYieldProgramParams) -> AppResult<Instruction> {
+    let (va, _bump) = derive_vault_authority_pda(&params.program_id);
+    let accounts = vec![
+        AccountMeta::new(params.governance, true),
+        AccountMeta::new_readonly(va, false),
+    ];
+    let mut data = vec![51u8];
+    data.extend_from_slice(params.yield_program.as_ref());
+    Ok(Instruction { program_id: params.program_id, accounts, data })
+}
+
+pub fn build_instruction_remove_yield_program(params: &RemoveYieldProgramParams) -> AppResult<Instruction> {
+    let (va, _bump) = derive_vault_authority_pda(&params.program_id);
+    let accounts = vec![
+        AccountMeta::new(params.governance, true),
+        AccountMeta::new_readonly(va, false),
+    ];
+    let mut data = vec![52u8];
+    data.extend_from_slice(params.yield_program.as_ref());
+    Ok(Instruction { program_id: params.program_id, accounts, data })
+}
+
+pub fn build_instruction_set_risk_level(params: &SetRiskLevelParams) -> AppResult<Instruction> {
+    let (va, _bump) = derive_vault_authority_pda(&params.program_id);
+    let accounts = vec![
+        AccountMeta::new(params.governance, true),
+        AccountMeta::new_readonly(va, false),
+    ];
+    let data = vec![53u8, params.risk_level];
+    Ok(Instruction { program_id: params.program_id, accounts, data })
 }
 
 pub async fn subscribe_to_account(_pubkey: Pubkey) -> AppResult<()> {

@@ -69,6 +69,30 @@ pub async fn init(pool: &PgPool) -> Result<(), sqlx::Error> {
 	.execute(pool)
 	.await?;
 
+	// Withdrawal whitelist (off-chain mirror for audit)
+	sqlx::query(
+		"CREATE TABLE IF NOT EXISTS withdraw_whitelist (
+			owner TEXT NOT NULL,
+			address TEXT NOT NULL,
+			added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (owner, address)
+		)"
+	)
+	.execute(pool)
+	.await?;
+
+	// Two-factor auth secrets per owner
+	sqlx::query(
+		"CREATE TABLE IF NOT EXISTS twofa (
+			owner TEXT PRIMARY KEY,
+			secret TEXT NOT NULL,
+			enabled BOOLEAN NOT NULL DEFAULT FALSE,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)"
+	)
+	.execute(pool)
+	.await?;
+
 	// Add new columns if missing
 	sqlx::query("ALTER TABLE vaults ADD COLUMN IF NOT EXISTS locked_balance BIGINT NOT NULL DEFAULT 0")
 		.execute(pool)
@@ -351,6 +375,59 @@ pub async fn insert_audit_log(pool: &PgPool, owner: Option<&str>, action: &str, 
 		.execute(pool)
 		.await?;
 	Ok(())
+}
+
+// -----------------
+// Whitelist helpers
+// -----------------
+pub async fn whitelist_add(pool: &PgPool, owner: &str, address: &str) -> Result<bool, sqlx::Error> {
+    let res = sqlx::query("INSERT INTO withdraw_whitelist (owner, address) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+        .bind(owner)
+        .bind(address)
+        .execute(pool)
+        .await?;
+    Ok(res.rows_affected() == 1)
+}
+
+pub async fn whitelist_remove(pool: &PgPool, owner: &str, address: &str) -> Result<bool, sqlx::Error> {
+    let res = sqlx::query("DELETE FROM withdraw_whitelist WHERE owner = $1 AND address = $2")
+        .bind(owner)
+        .bind(address)
+        .execute(pool)
+        .await?;
+    Ok(res.rows_affected() == 1)
+}
+
+pub async fn whitelist_list(pool: &PgPool, owner: &str) -> Result<Vec<String>, sqlx::Error> {
+    let rows = sqlx::query_as::<_, (String,)>("SELECT address FROM withdraw_whitelist WHERE owner = $1 ORDER BY added_at DESC")
+        .bind(owner)
+        .fetch_all(pool)
+        .await?;
+    Ok(rows.into_iter().map(|(a,)| a).collect())
+}
+
+// -----------------
+// 2FA helpers
+// -----------------
+pub async fn twofa_upsert(pool: &PgPool, owner: &str, secret: &str, enabled: bool) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO twofa (owner, secret, enabled) VALUES ($1, $2, $3)
+         ON CONFLICT (owner) DO UPDATE SET secret = EXCLUDED.secret, enabled = EXCLUDED.enabled, updated_at = NOW()"
+    )
+    .bind(owner)
+    .bind(secret)
+    .bind(enabled)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn twofa_get(pool: &PgPool, owner: &str) -> Result<Option<(String, bool)>, sqlx::Error> {
+    let row = sqlx::query_as::<_, (String, bool)>("SELECT secret, enabled FROM twofa WHERE owner = $1")
+        .bind(owner)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row)
 }
 
 pub async fn insert_yield_event(pool: &PgPool, owner: &str, protocol: &str, amount: i64, kind: &str) -> Result<(), sqlx::Error> {
