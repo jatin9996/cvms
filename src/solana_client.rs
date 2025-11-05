@@ -48,6 +48,10 @@ pub fn derive_vault_pda(owner: &Pubkey, program_id: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"vault", owner.as_ref()], program_id)
 }
 
+pub fn derive_vault_authority_pda(program_id: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"vault_authority"], program_id)
+}
+
 // Fetch on-chain multisig config from CollateralVault account
 pub async fn fetch_vault_multisig_config(client: &SolanaClient, owner: &Pubkey, program_id: &Pubkey) -> AppResult<(u8, Vec<Pubkey>)> {
     let (vault_pda, _) = derive_vault_pda(owner, program_id);
@@ -148,6 +152,16 @@ pub struct ScheduleTimelockParams {
     pub duration_seconds: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmergencyWithdrawParams {
+    pub program_id: Pubkey,
+    /// Authority that signs the instruction (owner or governance)
+    pub authority: Pubkey,
+    /// Vault owner used for PDA derivation
+    pub owner: Pubkey,
+    pub amount: u64,
+}
+
 pub fn build_instruction_initialize_vault(program_id: &Pubkey, user_pubkey: &Pubkey) -> AppResult<Instruction> {
 	let accounts = vec![
 		AccountMeta::new(*user_pubkey, true),
@@ -206,6 +220,20 @@ pub fn build_instruction_schedule_timelock(params: &ScheduleTimelockParams) -> A
     let mut data = vec![20u8];
     data.extend_from_slice(&params.amount.to_le_bytes());
     data.extend_from_slice(&params.duration_seconds.to_le_bytes());
+    Ok(Instruction { program_id: params.program_id, accounts, data })
+}
+
+pub fn build_instruction_emergency_withdraw(params: &EmergencyWithdrawParams) -> AppResult<Instruction> {
+    // Accounts: authority signer, owner (readonly), vault_authority PDA (readonly)
+    let (vault_authority, _bump) = derive_vault_authority_pda(&params.program_id);
+    let accounts = vec![
+        AccountMeta::new(params.authority, true),
+        AccountMeta::new_readonly(params.owner, false),
+        AccountMeta::new_readonly(vault_authority, false),
+    ];
+    // Placeholder layout: [op=30 | amount u64]
+    let mut data = vec![30u8];
+    data.extend_from_slice(&params.amount.to_le_bytes());
     Ok(Instruction { program_id: params.program_id, accounts, data })
 }
 

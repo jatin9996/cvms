@@ -12,6 +12,7 @@ use crate::{
         build_instruction_withdraw, build_instruction_withdraw_multisig, build_instruction_schedule_timelock, load_deployer_keypair, DepositParams, WithdrawParams,
         fetch_vault_multisig_config, build_partial_withdraw_tx, WithdrawMultisigParams,
 		build_instruction_pm_lock, build_instruction_pm_unlock, send_transaction_with_retries,
+        build_instruction_emergency_withdraw, EmergencyWithdrawParams,
 	},
 };
 use crate::{vault::VaultManager, cpi::CPIManager};
@@ -251,6 +252,65 @@ pub async fn vault_tvl(State(state): State<AppState>) -> impl IntoResponse {
         },
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
     }
+}
+
+#[derive(Deserialize)]
+pub struct EmergencyWithdrawRequest { pub owner: String, pub amount: u64, pub reason: Option<String> }
+
+pub async fn vault_emergency_withdraw(
+    State(state): State<AppState>,
+    TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+    Json(req): Json<EmergencyWithdrawRequest>,
+) -> impl IntoResponse {
+    // Admin protection
+    let token = auth.token();
+    if state.cfg.admin_jwt_secret.is_empty() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "admin secret not configured" })));
+    }
+    if verify_admin_jwt(token, &state.cfg.admin_jwt_secret).is_err() {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "unauthorized" })));
+    }
+
+    // Build instruction with governance authority (deployer keypair assumed to be governance signer)
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let owner = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid owner" }))) };
+
+    let payer = match load_deployer_keypair(&state.cfg.deployer_keypair_path) {
+        Ok(kp) => kp,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
+    };
+
+    // Optional sanity: ensure payer pubkey matches configured vault authority if provided
+    if !state.cfg.vault_authority_pubkey.is_empty() {
+        if let Ok(cfg_va) = Pubkey::from_str(&state.cfg.vault_authority_pubkey) {
+            if cfg_va != payer.pubkey() {
+                return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "payer is not governance signer" })));
+            }
+        }
+    }
+
+    let mut ixs = build_compute_budget_instructions(1_400_000, 1_000);
+    let em_ix = match build_instruction_emergency_withdraw(&EmergencyWithdrawParams { program_id, authority: payer.pubkey(), owner, amount: req.amount }) {
+        Ok(ix) => ix,
+        Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() })))
+    };
+    ixs.push(em_ix);
+
+    let recent_blockhash = match state.sol.rpc.get_latest_blockhash().await {
+        Ok(h) => h,
+        Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": format!("blockhash: {e}") })))
+    };
+    let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&*payer], recent_blockhash);
+
+    let sig = match crate::solana_client::send_transaction(&state.sol, &tx).await {
+        Ok(s) => s,
+        Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string() })))
+    };
+
+    let _ = db::insert_transaction(&state.pool, &req.owner, &sig.to_string(), Some(req.amount as i64), "emergency_withdraw").await;
+    let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "emergency_withdraw", serde_json::json!({ "amount": req.amount, "reason": req.reason })).await;
+    let _ = state.notifier.security_tx.send(serde_json::json!({ "kind": "emergency_withdraw", "owner": req.owner, "amount": req.amount, "signature": sig.to_string() }).to_string());
+    (StatusCode::OK, Json(serde_json::json!({ "signature": sig.to_string() })))
 }
 
 // --------------

@@ -31,6 +31,7 @@ pub fn router(state: AppState) -> Router {
 		.route("/vault/deposit", post(routes::vault_deposit))
 		.route("/vault/withdraw", post(routes::vault_withdraw).route_layer(GovernorLayer::new(governor_conf)))
         .route("/vault/schedule-withdraw", post(routes::vault_schedule_withdraw).route_layer(GovernorLayer::new(governor_conf)))
+        .route("/vault/emergency-withdraw", post(routes::vault_emergency_withdraw))
         .route("/vault/config/:owner", get(routes::vault_config))
         .route("/vault/timelocks/:owner", get(routes::vault_list_timelocks))
         .route("/vault/propose-withdraw", post(routes::vault_propose_withdraw))
