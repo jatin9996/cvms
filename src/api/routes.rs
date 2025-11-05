@@ -8,8 +8,9 @@ use crate::{
 	db,
 	error::AppError,
 	solana_client::{
-		build_compute_budget_instructions, build_instruction_deposit, build_instruction_initialize_vault,
-		build_instruction_withdraw, load_deployer_keypair, DepositParams, WithdrawParams,
+        build_compute_budget_instructions, build_instruction_deposit, build_instruction_initialize_vault,
+        build_instruction_withdraw, build_instruction_withdraw_multisig, load_deployer_keypair, DepositParams, WithdrawParams,
+        fetch_vault_multisig_config, build_partial_withdraw_tx, WithdrawMultisigParams,
 		build_instruction_pm_lock, build_instruction_pm_unlock, send_transaction_with_retries,
 	},
 };
@@ -198,6 +199,233 @@ pub async fn vault_tvl(State(state): State<AppState>) -> impl IntoResponse {
             let _ = state.notifier.tvl_tx.send(serde_json::json!({ "tvl": tvl }).to_string());
             (StatusCode::OK, Json(serde_json::json!({ "tvl": tvl })) )
         },
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
+    }
+}
+
+// --------------
+// Vault config IO
+// --------------
+pub async fn vault_config(State(state): State<AppState>, Path(owner): Path<String>) -> impl IntoResponse {
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid program id" }))) };
+    let owner_pk = match Pubkey::from_str(&owner) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid owner" }))) };
+    let ms = fetch_vault_multisig_config(&state.sol, &owner_pk, &program_id).await;
+    let delegates = db::delegate_list(&state.pool, &owner).await.unwrap_or_default();
+    match ms {
+        Ok((threshold, signers)) => {
+            let signers_str: Vec<String> = signers.into_iter().map(|p| p.to_string()).collect();
+            (StatusCode::OK, Json(serde_json::json!({ "threshold": threshold, "signers": signers_str, "delegates": delegates })))
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string(), "delegates": delegates })))
+    }
+}
+
+// -----------------
+// Multisig endpoints
+// -----------------
+#[derive(Deserialize)]
+pub struct ProposeWithdrawRequest { pub owner: String, pub amount: u64, pub threshold: u8, pub signers: Vec<String>, pub nonce: String, pub signature: String }
+
+pub async fn vault_propose_withdraw(State(state): State<AppState>, Json(req): Json<ProposeWithdrawRequest>) -> impl IntoResponse {
+    // Verify initiator signature on message: propose_withdraw:{owner}:{amount}:{threshold}:{nonce}
+    let message = format!("propose_withdraw:{}:{}:{}:{}", req.owner, req.amount, req.threshold, req.nonce);
+    if let Err(e) = verify_wallet_signature(&req.owner, message.as_bytes(), &req.signature) {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": e.to_string() })));
+    }
+    match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
+        Ok(true) => {},
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    }
+
+    let (threshold, signers) = if req.signers.is_empty() || req.threshold == 0 {
+        // auto-fetch config from chain
+        let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
+        let owner_pk = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => Pubkey::default() };
+        match fetch_vault_multisig_config(&state.sol, &owner_pk, &program_id).await {
+            Ok((t, ss)) => (t, ss.into_iter().map(|p| p.to_string()).collect::<Vec<_>>()),
+            Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string() }))),
+        }
+    } else {
+        // use provided
+        // uniq signers sanity
+        let mut uniq = std::collections::BTreeSet::new();
+        for s in req.signers.iter() { uniq.insert(s); }
+        if uniq.len() != req.signers.len() { return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "duplicate signers" }))); }
+        if (req.threshold as usize) > req.signers.len() { return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid threshold" }))); }
+        (req.threshold, req.signers.clone())
+    };
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let signers_json = serde_json::json!(signers);
+    if let Err(e) = db::ms_create_proposal(&state.pool, &id, &req.owner, req.amount as i64, threshold as i32, &signers_json).await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })));
+    }
+    let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "ms_propose_withdraw", serde_json::json!({ "proposal_id": id, "amount": req.amount, "threshold": req.threshold, "signers": signers_json })).await;
+    let _ = state.notifier.security_tx.send(serde_json::json!({ "kind": "ms_proposal", "proposal_id": id, "owner": req.owner, "amount": req.amount }).to_string());
+    // Notify signers via webhook if available
+    if let Ok(contacts) = db::ms_get_contacts_for(&state.pool, &signers).await {
+        for (pk, _email, webhook) in contacts.into_iter() {
+            if let Some(url) = webhook {
+                let payload = serde_json::json!({ "action": "request_signature", "proposal_id": id, "owner": req.owner, "amount": req.amount, "signer": pk });
+                let _ = send_webhook(&url, &payload).await;
+            }
+        }
+    }
+    (StatusCode::OK, Json(serde_json::json!({ "proposal_id": id })))
+}
+
+#[derive(Deserialize)]
+pub struct ApproveWithdrawRequest { pub proposal_id: String, pub signer: String, pub nonce: String, pub signature: String }
+
+pub async fn vault_approve_withdraw(State(state): State<AppState>, Json(req): Json<ApproveWithdrawRequest>) -> impl IntoResponse {
+    // Verify signer signature on message: approve_withdraw:{proposal_id}:{nonce}
+    let message = format!("approve_withdraw:{}:{}", req.proposal_id, req.nonce);
+    if let Err(e) = verify_wallet_signature(&req.signer, message.as_bytes(), &req.signature) {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": e.to_string() })));
+    }
+    match db::consume_nonce(&state.pool, &req.nonce, &req.signer).await {
+        Ok(true) => {},
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    }
+
+    let prop = match db::ms_get_proposal(&state.pool, &req.proposal_id).await {
+        Ok(Some(p)) => p,
+        Ok(None) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "proposal not found" }))),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    };
+    let (owner, amount, threshold, signers_json, status) = prop;
+    if status != "pending" { return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "proposal not pending" }))); }
+    // signer must be in allowed list
+    let allowed: Vec<String> = match serde_json::from_value(signers_json.clone()) { Ok(v) => v, Err(_) => vec![] };
+    if !allowed.iter().any(|s| s == &req.signer) {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "signer not allowed" })));
+    }
+    match db::ms_insert_approval(&state.pool, &req.proposal_id, &req.signer, &req.signature).await {
+        Ok(true) => {},
+        Ok(false) => return (StatusCode::OK, Json(serde_json::json!({ "ok": true, "duplicate": true }))),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    }
+    let count = match db::ms_count_approvals(&state.pool, &req.proposal_id).await {
+        Ok(c) => c,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    };
+
+    let _ = state.notifier.security_tx.send(serde_json::json!({ "kind": "ms_approval", "proposal_id": req.proposal_id, "signer": req.signer }).to_string());
+
+    if count as i32 >= threshold {
+        // Threshold reached. Build a partially signed transaction for co-signing by approvers.
+        let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
+        let owner_pk = match Pubkey::from_str(&owner) { Ok(p) => p, Err(_) => Pubkey::default() };
+        // Collect current approvals as signer set
+        let approvals = match db::ms_list_approvals(&state.pool, &req.proposal_id).await { Ok(v) => v, Err(_) => vec![] };
+        let mut signer_pubkeys: Vec<Pubkey> = approvals.iter().filter_map(|s| Pubkey::from_str(s).ok()).collect();
+        // Ensure current signer is first (authority)
+        let authority_pk = Pubkey::from_str(&req.signer).unwrap_or_default();
+        signer_pubkeys.retain(|p| *p != authority_pk);
+        let params = WithdrawMultisigParams { program_id, owner: owner_pk, authority: authority_pk, amount: amount as u64, other_signers: signer_pubkeys.clone() };
+        let payer = match load_deployer_keypair(&state.cfg.deployer_keypair_path) { Ok(kp) => kp, Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))) };
+        let raw = match build_partial_withdraw_tx(&state.sol, &payer, &params).await { Ok(b) => b, Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string() }))) };
+        let tx_b64 = base64::encode(raw);
+        let _ = db::ms_set_status(&state.pool, &req.proposal_id, "approved").await;
+
+        // Notify signers (including authority and others) via webhook with the partial tx
+        let signer_strings: Vec<String> = std::iter::once(req.signer.clone()).chain(approvals.into_iter().filter(|s| s != &req.signer)).collect();
+        if let Ok(contacts) = db::ms_get_contacts_for(&state.pool, &signer_strings).await {
+            for (pk, _email, webhook) in contacts.into_iter() {
+                if let Some(url) = webhook {
+                    let payload = serde_json::json!({ "action": "partial_tx_ready", "proposal_id": req.proposal_id, "owner": owner, "amount": amount, "tx_base64": tx_b64.clone(), "authority": req.signer });
+                    let _ = send_webhook(&url, &payload).await;
+                }
+            }
+        }
+        (StatusCode::OK, Json(serde_json::json!({ "ready": true, "transaction_base64": tx_b64, "required_signers": params.other_signers.iter().map(|p| p.to_string()).collect::<Vec<_>>() })))
+    } else {
+        (StatusCode::OK, Json(serde_json::json!({ "ready": false, "approvals": count, "threshold": threshold })))
+    }
+}
+
+pub async fn vault_proposal_status(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+    let prop = match db::ms_get_proposal(&state.pool, &id).await {
+        Ok(Some(p)) => p,
+        Ok(None) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "proposal not found" }))),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    };
+    let (_owner, _amount, threshold, _signers, status) = prop;
+    let approvals = match db::ms_count_approvals(&state.pool, &id).await { Ok(c) => c, Err(_) => 0 };
+    (StatusCode::OK, Json(serde_json::json!({ "status": status, "approvals": approvals, "threshold": threshold })))
+}
+
+// ---------------
+// Webhook utility
+// ---------------
+async fn send_webhook(url: &str, payload: &serde_json::Value) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    client
+        .post(url)
+        .json(payload)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// -----------------
+// Delegation routes
+// -----------------
+#[derive(Deserialize)]
+pub struct DelegateAddRequest { pub owner: String, pub delegate: String, pub nonce: String, pub signature: String }
+
+pub async fn vault_delegate_add(State(state): State<AppState>, Json(req): Json<DelegateAddRequest>) -> impl IntoResponse {
+    if Pubkey::from_str(&req.owner).is_err() || Pubkey::from_str(&req.delegate).is_err() {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid pubkey(s)" })));
+    }
+    // Require owner signature
+    let message = format!("delegate_add:{}:{}:{}", req.owner, req.delegate, req.nonce);
+    if let Err(e) = verify_wallet_signature(&req.owner, message.as_bytes(), &req.signature) {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": e.to_string() })));
+    }
+    match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
+        Ok(true) => {}
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    }
+    match db::delegate_add(&state.pool, &req.owner, &req.delegate).await {
+        Ok(true) => {
+            let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "delegate_add", serde_json::json!({ "delegate": req.delegate })).await;
+            (StatusCode::OK, Json(serde_json::json!({ "ok": true })))
+        }
+        Ok(false) => (StatusCode::OK, Json(serde_json::json!({ "ok": true, "duplicate": true }))),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
+    }
+}
+
+#[derive(Deserialize)]
+pub struct DelegateRemoveRequest { pub owner: String, pub delegate: String, pub nonce: String, pub signature: String }
+
+pub async fn vault_delegate_remove(State(state): State<AppState>, Json(req): Json<DelegateRemoveRequest>) -> impl IntoResponse {
+    if Pubkey::from_str(&req.owner).is_err() || Pubkey::from_str(&req.delegate).is_err() {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid pubkey(s)" })));
+    }
+    // Require owner signature
+    let message = format!("delegate_remove:{}:{}:{}", req.owner, req.delegate, req.nonce);
+    if let Err(e) = verify_wallet_signature(&req.owner, message.as_bytes(), &req.signature) {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": e.to_string() })));
+    }
+    match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
+        Ok(true) => {}
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    }
+    match db::delegate_remove(&state.pool, &req.owner, &req.delegate).await {
+        Ok(true) => {
+            let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "delegate_remove", serde_json::json!({ "delegate": req.delegate })).await;
+            (StatusCode::OK, Json(serde_json::json!({ "ok": true })))
+        }
+        Ok(false) => (StatusCode::OK, Json(serde_json::json!({ "ok": true, "not_found": true }))),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
     }
 }

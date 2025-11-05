@@ -23,7 +23,7 @@ impl Notifier {
 		let (tvl_tx, _) = broadcast::channel(capacity);
 		let (security_tx, _) = broadcast::channel(capacity);
 		let (analytics_tx, _) = broadcast::channel(capacity);
-		Arc::new(Self { deposit_tx, withdraw_tx, lock_tx, unlock_tx, vault_balance_tx, tvl_tx, security_tx, analytics_tx })
+        Arc::new(Self { deposit_tx, withdraw_tx, lock_tx, unlock_tx, vault_balance_tx, tvl_tx, security_tx, analytics_tx })
 	}
 }
 

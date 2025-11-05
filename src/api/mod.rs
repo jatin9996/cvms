@@ -1,4 +1,4 @@
-use axum::{routing::{get, post}, Router};
+use axum::{routing::{get, post, delete}, Router};
 use tower_governor::{GovernorConfigBuilder, GovernorLayer};
 use sqlx::PgPool;
 
@@ -30,9 +30,15 @@ pub fn router(state: AppState) -> Router {
 		.route("/vault/initialize", post(routes::vault_initialize))
 		.route("/vault/deposit", post(routes::vault_deposit))
 		.route("/vault/withdraw", post(routes::vault_withdraw).route_layer(GovernorLayer::new(governor_conf)))
+        .route("/vault/config/:owner", get(routes::vault_config))
+        .route("/vault/propose-withdraw", post(routes::vault_propose_withdraw))
+        .route("/vault/approve-withdraw", post(routes::vault_approve_withdraw))
+        .route("/vault/proposal/:id", get(routes::vault_proposal_status))
 		.route("/vault/balance/:owner", get(routes::vault_balance))
 		.route("/vault/transactions/:owner", get(routes::vault_transactions))
 		.route("/vault/tvl", get(routes::vault_tvl))
+        .route("/vault/delegate/add", post(routes::vault_delegate_add))
+        .route("/vault/delegate/remove", delete(routes::vault_delegate_remove))
         .route("/admin/vault-authority/add", post(routes::admin_vault_authority_add))
         .route("/admin/vault-token-account/set", post(routes::admin_set_vault_token_account))
 		.route("/pm/lock", post(routes::pm_lock).route_layer(GovernorLayer::new(governor_conf)))

@@ -105,6 +105,18 @@ pub async fn init(pool: &PgPool) -> Result<(), sqlx::Error> {
 	.execute(pool)
 	.await?;
 
+	// Vault delegates (off-chain allowlist for UI and prechecks)
+	sqlx::query(
+		"CREATE TABLE IF NOT EXISTS vault_delegates (
+			owner TEXT NOT NULL,
+			delegate TEXT NOT NULL,
+			added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (owner, delegate)
+		)"
+	)
+	.execute(pool)
+	.await?;
+
 	sqlx::query(
 		"CREATE TABLE IF NOT EXISTS authorized_programs (
 			program_id TEXT PRIMARY KEY,
@@ -113,6 +125,46 @@ pub async fn init(pool: &PgPool) -> Result<(), sqlx::Error> {
 	)
 	.execute(pool)
 	.await?;
+
+    // Multisig proposal tables
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS ms_proposals (
+            id UUID PRIMARY KEY,
+            owner TEXT NOT NULL,
+            amount BIGINT NOT NULL,
+            threshold INT NOT NULL,
+            signers JSONB NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS ms_approvals (
+            id BIGSERIAL PRIMARY KEY,
+            proposal_id UUID NOT NULL REFERENCES ms_proposals(id) ON DELETE CASCADE,
+            signer TEXT NOT NULL,
+            signature TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (proposal_id, signer)
+        )"
+    )
+    .execute(pool)
+    .await?;
+
+    // Optional contacts for signers to deliver notifications
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS ms_signer_contacts (
+            pubkey TEXT PRIMARY KEY,
+            email TEXT,
+            webhook TEXT,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    )
+    .execute(pool)
+    .await?;
 
 	Ok(())
 }
@@ -258,6 +310,126 @@ pub async fn insert_audit_log(pool: &PgPool, owner: Option<&str>, action: &str, 
 		.execute(pool)
 		.await?;
 	Ok(())
+}
+
+// -----------------
+// Delegates (off-chain)
+// -----------------
+pub async fn delegate_add(pool: &PgPool, owner: &str, delegate: &str) -> Result<bool, sqlx::Error> {
+    let res = sqlx::query("INSERT INTO vault_delegates (owner, delegate) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+        .bind(owner)
+        .bind(delegate)
+        .execute(pool)
+        .await?;
+    Ok(res.rows_affected() == 1)
+}
+
+pub async fn delegate_remove(pool: &PgPool, owner: &str, delegate: &str) -> Result<bool, sqlx::Error> {
+    let res = sqlx::query("DELETE FROM vault_delegates WHERE owner = $1 AND delegate = $2")
+        .bind(owner)
+        .bind(delegate)
+        .execute(pool)
+        .await?;
+    Ok(res.rows_affected() == 1)
+}
+
+pub async fn delegate_list(pool: &PgPool, owner: &str) -> Result<Vec<String>, sqlx::Error> {
+    let rows = sqlx::query_as::<_, (String,)>("SELECT delegate FROM vault_delegates WHERE owner = $1 ORDER BY added_at DESC")
+        .bind(owner)
+        .fetch_all(pool)
+        .await?;
+    Ok(rows.into_iter().map(|(d,)| d).collect())
+}
+
+// -----------------
+// Multisig proposals
+// -----------------
+pub async fn ms_create_proposal(
+    pool: &PgPool,
+    id: &str,
+    owner: &str,
+    amount: i64,
+    threshold: i32,
+    signers_json: &serde_json::Value,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO ms_proposals (id, owner, amount, threshold, signers) VALUES ($1, $2, $3, $4, $5)"
+    )
+    .bind(id)
+    .bind(owner)
+    .bind(amount)
+    .bind(threshold)
+    .bind(signers_json)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn ms_insert_approval(
+    pool: &PgPool,
+    proposal_id: &str,
+    signer: &str,
+    signature: &str,
+) -> Result<bool, sqlx::Error> {
+    let res = sqlx::query(
+        "INSERT INTO ms_approvals (proposal_id, signer, signature) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING"
+    )
+    .bind(proposal_id)
+    .bind(signer)
+    .bind(signature)
+    .execute(pool)
+    .await?;
+    Ok(res.rows_affected() == 1)
+}
+
+pub async fn ms_get_proposal(
+    pool: &PgPool,
+    id: &str,
+) -> Result<Option<(String, i64, i32, serde_json::Value, String)>, sqlx::Error> {
+    let row = sqlx::query_as::<_, (String, i64, i32, serde_json::Value, String)>(
+        "SELECT owner, amount, threshold, signers, status FROM ms_proposals WHERE id = $1"
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}
+
+pub async fn ms_count_approvals(pool: &PgPool, id: &str) -> Result<i64, sqlx::Error> {
+    let count = sqlx::query_scalar!("SELECT COUNT(1) FROM ms_approvals WHERE proposal_id = $1", id)
+        .fetch_one(pool)
+        .await?;
+    Ok(count.unwrap_or(0))
+}
+
+pub async fn ms_set_status(pool: &PgPool, id: &str, status: &str) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE ms_proposals SET status = $2, updated_at = NOW() WHERE id = $1")
+        .bind(id)
+        .bind(status)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn ms_list_approvals(pool: &PgPool, id: &str) -> Result<Vec<String>, sqlx::Error> {
+    let rows = sqlx::query_as::<_, (String,)>(
+        "SELECT signer FROM ms_approvals WHERE proposal_id = $1 ORDER BY id ASC"
+    )
+    .bind(id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|(s,)| s).collect())
+}
+
+pub async fn ms_get_contacts_for(pool: &PgPool, pubkeys: &[String]) -> Result<Vec<(String, Option<String>, Option<String>)>, sqlx::Error> {
+    if pubkeys.is_empty() { return Ok(vec![]); }
+    // Build simple IN clause
+    let mut query = String::from("SELECT pubkey, email, webhook FROM ms_signer_contacts WHERE pubkey = ANY($1)");
+    let rows = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(&query)
+        .bind(pubkeys)
+        .fetch_all(pool)
+        .await?;
+    Ok(rows)
 }
 
 pub async fn list_vaults(pool: &PgPool) -> Result<Vec<(String, Option<String>, i64)>, sqlx::Error> {
