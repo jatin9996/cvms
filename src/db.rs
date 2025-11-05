@@ -120,6 +120,32 @@ pub async fn init(pool: &PgPool) -> Result<(), sqlx::Error> {
 	.execute(pool)
 	.await?;
 
+	// Yield events/history
+	sqlx::query(
+		"CREATE TABLE IF NOT EXISTS yield_events (
+			id BIGSERIAL PRIMARY KEY,
+			owner TEXT NOT NULL,
+			protocol TEXT NOT NULL,
+			amount BIGINT NOT NULL,
+			kind TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)"
+	)
+	.execute(pool)
+	.await?;
+
+	// Protocol APY snapshots (for analytics)
+	sqlx::query(
+		"CREATE TABLE IF NOT EXISTS protocol_apy (
+			id BIGSERIAL PRIMARY KEY,
+			protocol TEXT NOT NULL,
+			apy DOUBLE PRECISION NOT NULL,
+			recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)"
+	)
+	.execute(pool)
+	.await?;
+
 	// Vault delegates (off-chain allowlist for UI and prechecks)
 	sqlx::query(
 		"CREATE TABLE IF NOT EXISTS vault_delegates (
@@ -325,6 +351,36 @@ pub async fn insert_audit_log(pool: &PgPool, owner: Option<&str>, action: &str, 
 		.execute(pool)
 		.await?;
 	Ok(())
+}
+
+pub async fn insert_yield_event(pool: &PgPool, owner: &str, protocol: &str, amount: i64, kind: &str) -> Result<(), sqlx::Error> {
+    sqlx::query("INSERT INTO yield_events (owner, protocol, amount, kind) VALUES ($1, $2, $3, $4)")
+        .bind(owner)
+        .bind(protocol)
+        .bind(amount)
+        .bind(kind)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn insert_protocol_apy(pool: &PgPool, protocol: &str, apy: f64) -> Result<(), sqlx::Error> {
+    sqlx::query("INSERT INTO protocol_apy (protocol, apy) VALUES ($1, $2)")
+        .bind(protocol)
+        .bind(apy)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn latest_protocol_apys(pool: &PgPool) -> Result<Vec<(String, f64)>, sqlx::Error> {
+    // Select latest APY per protocol
+    let rows = sqlx::query_as::<_, (String, f64)>(
+        "SELECT DISTINCT ON (protocol) protocol, apy FROM protocol_apy ORDER BY protocol, recorded_at DESC"
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
 }
 
 // -----------------

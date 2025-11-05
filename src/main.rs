@@ -28,7 +28,8 @@ async fn main() -> Result<()> {
     tokio::spawn(async move { tasks::event_indexer::run_event_indexer(indexer_state, notifier.clone()).await; });
     tokio::spawn(async move { tasks::reconciliation::run_reconciliation(recon_state.clone(), notifier.clone()).await; });
     tokio::spawn(async move { tasks::monitor::run_monitor(recon_state.clone(), notifier.clone()).await; });
-    tokio::spawn(async move { tasks::timelocks::run_timelock_cron(recon_state, notifier.clone()).await; });
+    tokio::spawn(async move { tasks::timelocks::run_timelock_cron(recon_state.clone(), notifier.clone()).await; });
+    tokio::spawn(async move { tasks::yield_tasks::run_yield_scheduler(recon_state).await; });
 
     let app: Router = api::router(state);
 

@@ -22,6 +22,8 @@ pub async fn run_monitor(state: AppState, notifier: std::sync::Arc<Notifier>) {
 			"vaults": vault_count,
 			"users": user_count,
 			"volume_24h": volume_24h,
+			"avg_apy": sqlx::query_scalar!("SELECT COALESCE(AVG(apy), 0.0) FROM protocol_apy WHERE recorded_at > NOW() - INTERVAL '1 day'")
+				.fetch_one(&state.pool).await.unwrap_or(Some(0.0)).unwrap_or(0.0),
 		}).to_string());
 
 		// Low-balance alerts

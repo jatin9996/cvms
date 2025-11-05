@@ -13,6 +13,8 @@ use crate::{
         fetch_vault_multisig_config, build_partial_withdraw_tx, WithdrawMultisigParams,
 		build_instruction_pm_lock, build_instruction_pm_unlock, send_transaction_with_retries,
         build_instruction_emergency_withdraw, EmergencyWithdrawParams,
+        build_instruction_yield_deposit, build_instruction_yield_withdraw, build_instruction_compound_yield,
+        YieldDepositParams, YieldWithdrawParams, CompoundYieldParams,
 	},
 };
 use crate::{vault::VaultManager, cpi::CPIManager};
@@ -71,7 +73,7 @@ pub async fn vault_deposit(State(state): State<AppState>, Json(req): Json<Deposi
     // Consume nonce
     match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
         Ok(true) => {},
-        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
     }
 
@@ -106,7 +108,7 @@ pub async fn vault_withdraw(State(state): State<AppState>, Json(req): Json<Withd
     }
     match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
         Ok(true) => {},
-        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
     }
 
@@ -158,7 +160,7 @@ pub async fn vault_balance(State(state): State<AppState>, Path(owner): Path<Stri
         if let Some(token_acc) = token_acc_opt {
             if let Ok(pk) = Pubkey::from_str(&token_acc) {
                 match crate::solana_client::get_token_balance(&state.sol, &pk).await {
-                    Ok(bal) => return (StatusCode::OK, Json(serde_json::json!({ "balance": bal }))),
+                    Ok(bal) => return (StatusCode::OK, Json(serde_json::json!({ "balance": bal })) ),
                     Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string() })))
                 }
             }
@@ -167,7 +169,7 @@ pub async fn vault_balance(State(state): State<AppState>, Path(owner): Path<Stri
     match Pubkey::from_str(&owner) {
         Ok(token_acc) => {
             match crate::solana_client::get_token_balance(&state.sol, &token_acc).await {
-                Ok(bal) => (StatusCode::OK, Json(serde_json::json!({ "balance": bal }))),
+                Ok(bal) => (StatusCode::OK, Json(serde_json::json!({ "balance": bal })) ),
                 Err(e) => (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string() })))
             }
         }
@@ -203,7 +205,7 @@ pub async fn vault_schedule_withdraw(State(state): State<AppState>, Json(req): J
     if req.duration_seconds < 0 { return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid duration" }))); }
     match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
         Ok(true) => {},
-        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })) ),
     }
     let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
@@ -344,7 +346,7 @@ pub async fn vault_propose_withdraw(State(state): State<AppState>, Json(req): Js
     }
     match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
         Ok(true) => {},
-        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
     }
 
@@ -396,7 +398,7 @@ pub async fn vault_approve_withdraw(State(state): State<AppState>, Json(req): Js
     }
     match db::consume_nonce(&state.pool, &req.nonce, &req.signer).await {
         Ok(true) => {},
-        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
     }
 
@@ -414,7 +416,7 @@ pub async fn vault_approve_withdraw(State(state): State<AppState>, Json(req): Js
     }
     match db::ms_insert_approval(&state.pool, &req.proposal_id, &req.signer, &req.signature).await {
         Ok(true) => {},
-        Ok(false) => return (StatusCode::OK, Json(serde_json::json!({ "ok": true, "duplicate": true }))),
+        Ok(false) => return (StatusCode::OK, Json(serde_json::json!({ "ok": true, "duplicate": true })) ),
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
     }
     let count = match db::ms_count_approvals(&state.pool, &req.proposal_id).await {
@@ -500,7 +502,7 @@ pub async fn vault_delegate_add(State(state): State<AppState>, Json(req): Json<D
     }
     match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
         Ok(true) => {}
-        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
     }
     match db::delegate_add(&state.pool, &req.owner, &req.delegate).await {
@@ -527,7 +529,7 @@ pub async fn vault_delegate_remove(State(state): State<AppState>, Json(req): Jso
     }
     match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
         Ok(true) => {}
-        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
     }
     match db::delegate_remove(&state.pool, &req.owner, &req.delegate).await {
@@ -621,7 +623,7 @@ pub async fn pm_lock(State(state): State<AppState>, Json(req): Json<PmLockReques
 	}
 	match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
 		Ok(true) => {},
-		Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+		Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
 		Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })) ),
 	}
 	let owner = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => Pubkey::default() };
@@ -647,7 +649,7 @@ pub async fn pm_unlock(State(state): State<AppState>, Json(req): Json<PmUnlockRe
 	}
 	match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
 		Ok(true) => {},
-		Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" }))),
+		Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
 		Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })) ),
 	}
 	let owner = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => Pubkey::default() };
@@ -661,5 +663,108 @@ pub async fn pm_unlock(State(state): State<AppState>, Json(req): Json<PmUnlockRe
 		},
 		Err(e) => (StatusCode::BAD_GATEWAY, Json(serde_json::json!({"error": e.to_string()})))
 	}
+}
+
+// -----------------
+// Yield endpoints
+// -----------------
+#[derive(Deserialize)]
+pub struct YieldOpRequest { pub owner: String, pub amount: u64, pub yield_program: String, pub nonce: String, pub signature: String }
+
+pub async fn vault_yield_deposit(State(state): State<AppState>, Json(req): Json<YieldOpRequest>) -> impl IntoResponse {
+    let message = format!("yield_deposit:{}:{}:{}:{}", req.owner, req.amount, req.yield_program, req.nonce);
+    if let Err(e) = verify_wallet_signature(&req.owner, message.as_bytes(), &req.signature) {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": e.to_string() })));
+    }
+    match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
+        Ok(true) => {},
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    }
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let owner = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let yield_program = match Pubkey::from_str(&req.yield_program) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid yield_program" }))) };
+    let ix = match build_instruction_yield_deposit(&YieldDepositParams { program_id, owner, amount: req.amount, yield_program }) { Ok(ix) => ix, Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": e.to_string()}))) };
+    let payload = serde_json::json!({
+        "program_id": ix.program_id.to_string(),
+        "accounts": ix.accounts.iter().map(|a| serde_json::json!({
+            "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable
+        })).collect::<Vec<_>>(),
+        "data": base64::encode(ix.data),
+    });
+    let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "yield_deposit_request", serde_json::json!({ "amount": req.amount, "yield_program": req.yield_program, "nonce": req.nonce })).await;
+    (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
+}
+
+pub async fn vault_yield_withdraw(State(state): State<AppState>, Json(req): Json<YieldOpRequest>) -> impl IntoResponse {
+    let message = format!("yield_withdraw:{}:{}:{}:{}", req.owner, req.amount, req.yield_program, req.nonce);
+    if let Err(e) = verify_wallet_signature(&req.owner, message.as_bytes(), &req.signature) {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": e.to_string() })));
+    }
+    match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
+        Ok(true) => {},
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    }
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let owner = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let yield_program = match Pubkey::from_str(&req.yield_program) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid yield_program" }))) };
+    let ix = match build_instruction_yield_withdraw(&YieldWithdrawParams { program_id, owner, amount: req.amount, yield_program }) { Ok(ix) => ix, Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": e.to_string()}))) };
+    let payload = serde_json::json!({
+        "program_id": ix.program_id.to_string(),
+        "accounts": ix.accounts.iter().map(|a| serde_json::json!({
+            "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable
+        })).collect::<Vec<_>>(),
+        "data": base64::encode(ix.data),
+    });
+    let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "yield_withdraw_request", serde_json::json!({ "amount": req.amount, "yield_program": req.yield_program, "nonce": req.nonce })).await;
+    (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
+}
+
+#[derive(Deserialize)]
+pub struct YieldCompoundRequest { pub owner: String, pub compounded_amount: u64, pub yield_program: String, pub nonce: String, pub signature: String }
+
+pub async fn vault_compound_yield(State(state): State<AppState>, Json(req): Json<YieldCompoundRequest>) -> impl IntoResponse {
+    let message = format!("compound_yield:{}:{}:{}:{}", req.owner, req.compounded_amount, req.yield_program, req.nonce);
+    if let Err(e) = verify_wallet_signature(&req.owner, message.as_bytes(), &req.signature) {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": e.to_string() })));
+    }
+    match db::consume_nonce(&state.pool, &req.nonce, &req.owner).await {
+        Ok(true) => {},
+        Ok(false) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid or used nonce" })) ),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    }
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let owner = match Pubkey::from_str(&req.owner) { Ok(p) => p, Err(_) => Pubkey::default() };
+    let yield_program = match Pubkey::from_str(&req.yield_program) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid yield_program" }))) };
+    let ix = match build_instruction_compound_yield(&CompoundYieldParams { program_id, owner, compounded_amount: req.compounded_amount, yield_program }) { Ok(ix) => ix, Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": e.to_string()}))) };
+    let payload = serde_json::json!({
+        "program_id": ix.program_id.to_string(),
+        "accounts": ix.accounts.iter().map(|a| serde_json::json!({
+            "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable
+        })).collect::<Vec<_>>(),
+        "data": base64::encode(ix.data),
+    });
+    let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "yield_compound_request", serde_json::json!({ "compounded_amount": req.compounded_amount, "yield_program": req.yield_program, "nonce": req.nonce })).await;
+    (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
+}
+
+pub async fn vault_yield_status(State(state): State<AppState>, Path(owner): Path<String>) -> impl IntoResponse {
+    let apys = crate::db::latest_protocol_apys(&state.pool).await.unwrap_or_default();
+    let mut best: Option<(&str, f64)> = None;
+    let mut list = Vec::new();
+    for (protocol, apy) in apys.into_iter() {
+        if best.map(|(_, b)| apy > b).unwrap_or(true) {
+            best = Some((Box::leak(protocol.clone().into_boxed_str()), apy));
+        }
+        list.push(serde_json::json!({ "name": protocol, "apy": apy }));
+    }
+    let (selected, projected_apr) = match best { Some((p, a)) => (Some(p.to_string()), a), None => (None, 0.0) };
+    (StatusCode::OK, Json(serde_json::json!({
+        "owner": owner,
+        "protocols": list,
+        "selected": selected,
+        "projected_apr": projected_apr,
+    })))
 }
 

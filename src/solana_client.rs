@@ -237,6 +237,66 @@ pub fn build_instruction_emergency_withdraw(params: &EmergencyWithdrawParams) ->
     Ok(Instruction { program_id: params.program_id, accounts, data })
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldDepositParams {
+    pub program_id: Pubkey,
+    pub owner: Pubkey,
+    pub amount: u64,
+    pub yield_program: Pubkey,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldWithdrawParams {
+    pub program_id: Pubkey,
+    pub owner: Pubkey,
+    pub amount: u64,
+    pub yield_program: Pubkey,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompoundYieldParams {
+    pub program_id: Pubkey,
+    pub owner: Pubkey,
+    pub compounded_amount: u64,
+    pub yield_program: Pubkey,
+}
+
+pub fn build_instruction_yield_deposit(params: &YieldDepositParams) -> AppResult<Instruction> {
+    let accounts = vec![
+        AccountMeta::new(params.owner, true),
+        AccountMeta::new_readonly(params.owner, false),
+        AccountMeta::new_readonly(params.yield_program, false),
+    ];
+    // Placeholder op code: 40 | amount u64 LE
+    let mut data = vec![40u8];
+    data.extend_from_slice(&params.amount.to_le_bytes());
+    Ok(Instruction { program_id: params.program_id, accounts, data })
+}
+
+pub fn build_instruction_yield_withdraw(params: &YieldWithdrawParams) -> AppResult<Instruction> {
+    let accounts = vec![
+        AccountMeta::new(params.owner, true),
+        AccountMeta::new_readonly(params.owner, false),
+        AccountMeta::new_readonly(params.yield_program, false),
+    ];
+    // Placeholder op code: 41 | amount u64 LE
+    let mut data = vec![41u8];
+    data.extend_from_slice(&params.amount.to_le_bytes());
+    Ok(Instruction { program_id: params.program_id, accounts, data })
+}
+
+pub fn build_instruction_compound_yield(params: &CompoundYieldParams) -> AppResult<Instruction> {
+    let accounts = vec![
+        AccountMeta::new(params.owner, true),
+        AccountMeta::new_readonly(params.owner, false),
+        AccountMeta::new_readonly(params.yield_program, false),
+    ];
+    // Placeholder op code: 42 | compounded_amount u64 LE
+    let mut data = vec![42u8];
+    data.extend_from_slice(&params.compounded_amount.to_le_bytes());
+    Ok(Instruction { program_id: params.program_id, accounts, data })
+}
+
 pub async fn build_partial_withdraw_tx(
     client: &SolanaClient,
     payer: &Keypair,
