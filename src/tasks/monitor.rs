@@ -5,7 +5,7 @@ pub async fn run_monitor(state: AppState, notifier: std::sync::Arc<Notifier>) {
 	let low_threshold = state.cfg.low_balance_threshold;
 	loop {
 		// TVL compute and broadcast
-		let tvl_row = sqlx::query_scalar!(
+		let tvl_row = sqlx::query_scalar::<_, i64>(
 			"SELECT COALESCE(SUM(CASE WHEN kind = 'deposit' THEN amount ELSE -amount END), 0) AS tvl FROM transactions"
 		).fetch_one(&state.pool).await;
 		if let Ok(tvl) = tvl_row {
@@ -13,17 +13,17 @@ pub async fn run_monitor(state: AppState, notifier: std::sync::Arc<Notifier>) {
 		}
 
 		// Analytics: vault count, users, 24h volume
-		let vault_count = sqlx::query_scalar!("SELECT COUNT(*)::BIGINT FROM vaults").fetch_one(&state.pool).await.unwrap_or(0);
-		let user_count = sqlx::query_scalar!("SELECT COUNT(DISTINCT owner)::BIGINT FROM transactions").fetch_one(&state.pool).await.unwrap_or(0);
-		let volume_24h = sqlx::query_scalar!(
+		let vault_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*)::BIGINT FROM vaults").fetch_one(&state.pool).await.unwrap_or(0);
+		let user_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(DISTINCT owner)::BIGINT FROM transactions").fetch_one(&state.pool).await.unwrap_or(0);
+		let volume_24h = sqlx::query_scalar::<_, i64>(
 			"SELECT COALESCE(SUM(ABS(amount)), 0)::BIGINT FROM transactions WHERE created_at > NOW() - INTERVAL '24 hours'"
 		).fetch_one(&state.pool).await.unwrap_or(0);
 		let _ = notifier.analytics_tx.send(serde_json::json!({
 			"vaults": vault_count,
 			"users": user_count,
 			"volume_24h": volume_24h,
-			"avg_apy": sqlx::query_scalar!("SELECT COALESCE(AVG(apy), 0.0) FROM protocol_apy WHERE recorded_at > NOW() - INTERVAL '1 day'")
-				.fetch_one(&state.pool).await.unwrap_or(Some(0.0)).unwrap_or(0.0),
+			"avg_apy": sqlx::query_scalar::<_, f64>("SELECT COALESCE(AVG(apy), 0.0) FROM protocol_apy WHERE recorded_at > NOW() - INTERVAL '1 day'")
+				.fetch_one(&state.pool).await.unwrap_or(0.0),
 		}).to_string());
 
 		// Low-balance alerts

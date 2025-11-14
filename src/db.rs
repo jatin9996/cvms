@@ -350,7 +350,8 @@ pub async fn update_vault_snapshot(
 }
 
 pub async fn get_locked_balance(pool: &PgPool, owner: &str) -> Result<i64, sqlx::Error> {
-	let row = sqlx::query_scalar!("SELECT locked_balance FROM vaults WHERE owner = $1", owner)
+	let row = sqlx::query_scalar::<_, i64>("SELECT locked_balance FROM vaults WHERE owner = $1")
+		.bind(owner)
 		.fetch_optional(pool)
 		.await?;
 	Ok(row.unwrap_or(0))
@@ -599,10 +600,11 @@ pub async fn ms_get_proposal(
 }
 
 pub async fn ms_count_approvals(pool: &PgPool, id: &str) -> Result<i64, sqlx::Error> {
-    let count = sqlx::query_scalar!("SELECT COUNT(1) FROM ms_approvals WHERE proposal_id = $1", id)
+    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(1) FROM ms_approvals WHERE proposal_id = $1")
+        .bind(id)
         .fetch_one(pool)
         .await?;
-    Ok(count.unwrap_or(0))
+    Ok(count)
 }
 
 pub async fn ms_set_status(pool: &PgPool, id: &str, status: &str) -> Result<(), sqlx::Error> {

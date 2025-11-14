@@ -1,1 +1,4 @@
 target/
+patches/
+RustCrypto-formats/
+sqlx-mysql/

@@ -1,6 +1,7 @@
 use axum::{extract::{Path, State, TypedHeader}, http::{StatusCode, HeaderMap}, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
-use solana_sdk::pubkey::Pubkey;
+use solana_sdk::{pubkey::Pubkey, signature::Signer};
+use std::str::FromStr;
 
 use crate::{
 	auth::{verify_admin_jwt, verify_wallet_signature},
@@ -19,6 +20,8 @@ use crate::{
         build_instruction_add_withdraw_whitelist, build_instruction_remove_withdraw_whitelist,
         build_instruction_request_withdraw,
         build_instruction_transfer_collateral, TransferCollateralParams,
+        build_instruction_add_yield_program, build_instruction_remove_yield_program,
+        build_instruction_set_risk_level, AddYieldProgramParams, RemoveYieldProgramParams, SetRiskLevelParams,
 	},
 };
 use crate::{vault::VaultManager, cpi::CPIManager};
@@ -29,7 +32,7 @@ pub async fn health() -> Json<serde_json::Value> {
 }
 
 pub async fn ready(State(state): State<AppState>) -> impl IntoResponse {
-	let db_ok = sqlx::query_scalar!("SELECT 1 as one").fetch_one(&state.pool).await.is_ok();
+	let db_ok = sqlx::query_scalar::<_, i64>("SELECT 1 as one").fetch_one(&state.pool).await.is_ok();
 	let rpc_ok = state.sol.rpc.get_latest_blockhash().await.is_ok();
 	let status = if db_ok && rpc_ok { "ok" } else { "degraded" };
 	(StatusCode::OK, Json(serde_json::json!({ "status": status, "db": db_ok, "rpc": rpc_ok })))
@@ -268,9 +271,10 @@ pub async fn vault_list_timelocks(State(state): State<AppState>, Path(owner): Pa
 }
 
 pub async fn vault_tvl(State(state): State<AppState>) -> impl IntoResponse {
-    let row = sqlx::query_scalar!(
+    let row = sqlx::query_scalar::<_, i64>(
         "SELECT COALESCE(SUM(CASE WHEN kind = 'deposit' THEN amount ELSE -amount END), 0) AS tvl FROM transactions"
-    ).fetch_one(&state.pool).await;
+    );
+    let row = row.fetch_one(&state.pool).await;
     match row {
         Ok(tvl) => {
             let _ = state.notifier.tvl_tx.send(serde_json::json!({ "tvl": tvl }).to_string());
@@ -927,6 +931,149 @@ pub async fn admin_withdraw_rate_limit_set(State(state): State<AppState>, Json(r
     });
     let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "rate_limit_set_requested", serde_json::json!({ "window_seconds": req.window_seconds, "max_amount": req.max_amount })).await;
     (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
+}
+
+#[derive(Deserialize)]
+pub struct AdminYieldProgramReq { pub yield_program: String }
+
+pub async fn admin_yield_program_add(
+    State(state): State<AppState>,
+    TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+    Json(req): Json<AdminYieldProgramReq>,
+) -> impl IntoResponse {
+    let token = auth.token();
+    if state.cfg.admin_jwt_secret.is_empty() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "admin secret not configured" })));
+    }
+    if verify_admin_jwt(token, &state.cfg.admin_jwt_secret).is_err() {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "unauthorized" })));
+    }
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid program id" }))) };
+    let yield_program = match Pubkey::from_str(&req.yield_program) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid yield program" }))) };
+    let payer = match load_deployer_keypair(&state.cfg.deployer_keypair_path) {
+        Ok(kp) => kp,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    };
+    if !state.cfg.vault_authority_pubkey.is_empty() {
+        if let Ok(cfg_va) = Pubkey::from_str(&state.cfg.vault_authority_pubkey) {
+            if cfg_va != payer.pubkey() {
+                return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "payer is not governance signer" })));
+            }
+        }
+    }
+    let mut ixs = build_compute_budget_instructions(1_200_000, 1_000);
+    let ix = match build_instruction_add_yield_program(&AddYieldProgramParams { program_id, governance: payer.pubkey(), yield_program }) {
+        Ok(ix) => ix,
+        Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))),
+    };
+    ixs.push(ix);
+    let recent_blockhash = match state.sol.rpc.get_latest_blockhash().await {
+        Ok(h) => h,
+        Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": format!("blockhash: {e}") }))),
+    };
+    let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&*payer], recent_blockhash);
+    let sig = match send_transaction_with_retries(&state.sol, &tx, 3).await {
+        Ok(s) => s,
+        Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string() }))),
+    };
+    let signature = sig.to_string();
+    let _ = db::insert_audit_log(&state.pool, None, "yield_program_add", serde_json::json!({ "yield_program": req.yield_program, "signature": signature })).await;
+    let _ = state.notifier.security_tx.send(serde_json::json!({ "kind": "yield_program_add", "program": req.yield_program, "signature": signature }).to_string());
+    (StatusCode::OK, Json(serde_json::json!({ "signature": signature })))
+}
+
+pub async fn admin_yield_program_remove(
+    State(state): State<AppState>,
+    TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+    Json(req): Json<AdminYieldProgramReq>,
+) -> impl IntoResponse {
+    let token = auth.token();
+    if state.cfg.admin_jwt_secret.is_empty() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "admin secret not configured" })));
+    }
+    if verify_admin_jwt(token, &state.cfg.admin_jwt_secret).is_err() {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "unauthorized" })));
+    }
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid program id" }))) };
+    let yield_program = match Pubkey::from_str(&req.yield_program) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid yield program" }))) };
+    let payer = match load_deployer_keypair(&state.cfg.deployer_keypair_path) {
+        Ok(kp) => kp,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    };
+    if !state.cfg.vault_authority_pubkey.is_empty() {
+        if let Ok(cfg_va) = Pubkey::from_str(&state.cfg.vault_authority_pubkey) {
+            if cfg_va != payer.pubkey() {
+                return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "payer is not governance signer" })));
+            }
+        }
+    }
+    let mut ixs = build_compute_budget_instructions(1_200_000, 1_000);
+    let ix = match build_instruction_remove_yield_program(&RemoveYieldProgramParams { program_id, governance: payer.pubkey(), yield_program }) {
+        Ok(ix) => ix,
+        Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))),
+    };
+    ixs.push(ix);
+    let recent_blockhash = match state.sol.rpc.get_latest_blockhash().await {
+        Ok(h) => h,
+        Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": format!("blockhash: {e}") }))),
+    };
+    let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&*payer], recent_blockhash);
+    let sig = match send_transaction_with_retries(&state.sol, &tx, 3).await {
+        Ok(s) => s,
+        Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string() }))),
+    };
+    let signature = sig.to_string();
+    let _ = db::insert_audit_log(&state.pool, None, "yield_program_remove", serde_json::json!({ "yield_program": req.yield_program, "signature": signature })).await;
+    let _ = state.notifier.security_tx.send(serde_json::json!({ "kind": "yield_program_remove", "program": req.yield_program, "signature": signature }).to_string());
+    (StatusCode::OK, Json(serde_json::json!({ "signature": signature })))
+}
+
+#[derive(Deserialize)]
+pub struct AdminRiskLevelSetReq { pub risk_level: u8 }
+
+pub async fn admin_risk_level_set(
+    State(state): State<AppState>,
+    TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+    Json(req): Json<AdminRiskLevelSetReq>,
+) -> impl IntoResponse {
+    let token = auth.token();
+    if state.cfg.admin_jwt_secret.is_empty() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "admin secret not configured" })));
+    }
+    if verify_admin_jwt(token, &state.cfg.admin_jwt_secret).is_err() {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "unauthorized" })));
+    }
+    let program_id = match Pubkey::from_str(&state.cfg.program_id) { Ok(p) => p, Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid program id" }))) };
+    let payer = match load_deployer_keypair(&state.cfg.deployer_keypair_path) {
+        Ok(kp) => kp,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))),
+    };
+    if !state.cfg.vault_authority_pubkey.is_empty() {
+        if let Ok(cfg_va) = Pubkey::from_str(&state.cfg.vault_authority_pubkey) {
+            if cfg_va != payer.pubkey() {
+                return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "payer is not governance signer" })));
+            }
+        }
+    }
+    let mut ixs = build_compute_budget_instructions(1_000_000, 1_000);
+    let ix = match build_instruction_set_risk_level(&SetRiskLevelParams { program_id, governance: payer.pubkey(), risk_level: req.risk_level }) {
+        Ok(ix) => ix,
+        Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))),
+    };
+    ixs.push(ix);
+    let recent_blockhash = match state.sol.rpc.get_latest_blockhash().await {
+        Ok(h) => h,
+        Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": format!("blockhash: {e}") }))),
+    };
+    let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&*payer], recent_blockhash);
+    let sig = match send_transaction_with_retries(&state.sol, &tx, 3).await {
+        Ok(s) => s,
+        Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string() }))),
+    };
+    let signature = sig.to_string();
+    let _ = db::insert_audit_log(&state.pool, None, "risk_level_set", serde_json::json!({ "risk_level": req.risk_level, "signature": signature })).await;
+    let _ = state.notifier.security_tx.send(serde_json::json!({ "kind": "risk_level_set", "risk_level": req.risk_level, "signature": signature }).to_string());
+    (StatusCode::OK, Json(serde_json::json!({ "signature": signature })))
 }
 
 // -----------------

@@ -6,6 +6,7 @@ use serde::Deserialize;
 use solana_client::nonblocking::pubsub_client::PubsubClient;
 use solana_client::rpc_config::RpcAccountInfoConfig;
 use solana_sdk::pubkey::Pubkey;
+use std::str::FromStr;
 
 use super::AppState;
 

@@ -1,0 +1,29 @@
+[package]
+name = "sqlx-mysql"
+version = "0.7.4"
+edition = "2021"
+
+[lib]
+name = "sqlx_mysql"
+path = "lib.rs"
+
+[features]
+default = []
+runtime-tokio = []
+runtime-tokio-rustls = []
+runtime-actix-rustls = []
+runtime-async-std = []
+runtime-async-std-rustls = []
+tls-native-tls = []
+tls-rustls = []
+macros = []
+migrate = []
+time = []
+uuid = []
+chrono = []
+json = []
+bigdecimal = []
+any = []
+all-types = []
+offline = []
+

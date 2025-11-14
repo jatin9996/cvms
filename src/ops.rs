@@ -27,4 +27,19 @@ impl RateLimiter {
 	}
 }
 
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[tokio::test(flavor = "current_thread")]
+	async fn rate_limiter_enforces_per_key_limit() {
+		let limiter = RateLimiter::new(2);
+		assert!(limiter.check_and_record("alice").await);
+		assert!(limiter.check_and_record("alice").await);
+		assert!(!limiter.check_and_record("alice").await);
+		// new key should have independent limit
+		assert!(limiter.check_and_record("bob").await);
+	}
+}
+
 

@@ -1,5 +1,6 @@
 use crate::{api::AppState, db, error::{AppError, AppResult}, solana_client::{build_compute_budget_instructions, build_instruction_deposit, build_instruction_initialize_vault, build_instruction_withdraw, DepositParams, WithdrawParams, send_transaction_with_retries, load_deployer_keypair}};
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, transaction::Transaction};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Signer, transaction::Transaction};
+use std::str::FromStr;
 
 #[derive(Clone)]
 pub struct VaultManager {

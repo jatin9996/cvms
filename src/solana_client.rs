@@ -8,23 +8,27 @@ use solana_sdk::{
 	pubkey::Pubkey,
 	signature::{Keypair, Signature, Signer},
 	system_program,
+	sysvar,
 	transaction::Transaction,
 };
 use spl_associated_token_account as spl_ata;
 use spl_token;
 use std::sync::Arc;
 use sha2::{Digest, Sha256};
-use solana_program::sysvar;
 use borsh::BorshDeserialize;
 
 #[derive(Clone)]
 pub struct SolanaClient {
-	pub rpc: RpcClient,
+	pub rpc: Arc<RpcClient>,
 }
 
 impl SolanaClient {
 	pub fn new(rpc_url: &str) -> Self {
-		Self { rpc: RpcClient::new(rpc_url.to_string()) }
+		Self { rpc: Arc::new(RpcClient::new(rpc_url.to_string())) }
+	}
+
+	pub fn with_shared(rpc: Arc<RpcClient>) -> Self {
+		Self { rpc }
 	}
 }
 
@@ -170,6 +174,7 @@ pub async fn get_token_balance(client: &SolanaClient, token_account_pubkey: &Pub
 pub async fn send_transaction(client: &SolanaClient, tx: &Transaction) -> AppResult<Signature> {
 	let sig = client
 		.rpc
+		.as_ref()
 		.send_and_confirm_serialized_transaction(tx)
 		.await
 		.map_err(|e| AppError::Solana(format!("send_and_confirm_transaction failed: {e}")))?;
@@ -490,7 +495,7 @@ pub fn build_instruction_transfer_collateral(params: &TransferCollateralParams) 
     let accounts = vec![
         AccountMeta::new_readonly(params.caller_program, false),
         AccountMeta::new_readonly(va, false),
-        AccountMeta::new_readonly(solana_program::sysvar::instructions::ID, false),
+        AccountMeta::new_readonly(sysvar::instructions::ID, false),
         AccountMeta::new(from_vault, false),
         AccountMeta::new(to_vault, false),
         AccountMeta::new(from_vault_ata, false),
@@ -536,7 +541,7 @@ pub fn build_instruction_pm_unlock(position_manager_program_id: &Pubkey, vault_p
 		AccountMeta::new(*owner, true),
 		AccountMeta::new_readonly(*vault_program_id, false),
 	];
-	let mut data = vec![11u8]; // op code placeholder for unlock
+	let mut data = vec![11u8]; // op code for unlock
 	data.extend_from_slice(&amount.to_le_bytes());
 	Ok(Instruction { program_id: *position_manager_program_id, accounts, data })
 }
@@ -571,7 +576,6 @@ pub fn build_create_ata_instruction(payer: &Pubkey, owner: &Pubkey, mint: &Pubke
 		owner,
 		mint,
 		&spl_token::id(),
-		&spl_ata::id(),
 	)
 }
 
@@ -587,9 +591,9 @@ pub fn build_instruction_add_yield_program(params: &AddYieldProgramParams) -> Ap
     let (va, _bump) = derive_vault_authority_pda(&params.program_id);
     let accounts = vec![
         AccountMeta::new(params.governance, true),
-        AccountMeta::new_readonly(va, false),
+        AccountMeta::new(va, false),
     ];
-    let mut data = vec![51u8];
+    let mut data = anchor_discriminator("add_yield_program").to_vec();
     data.extend_from_slice(params.yield_program.as_ref());
     Ok(Instruction { program_id: params.program_id, accounts, data })
 }
@@ -598,9 +602,9 @@ pub fn build_instruction_remove_yield_program(params: &RemoveYieldProgramParams)
     let (va, _bump) = derive_vault_authority_pda(&params.program_id);
     let accounts = vec![
         AccountMeta::new(params.governance, true),
-        AccountMeta::new_readonly(va, false),
+        AccountMeta::new(va, false),
     ];
-    let mut data = vec![52u8];
+    let mut data = anchor_discriminator("remove_yield_program").to_vec();
     data.extend_from_slice(params.yield_program.as_ref());
     Ok(Instruction { program_id: params.program_id, accounts, data })
 }
@@ -609,9 +613,10 @@ pub fn build_instruction_set_risk_level(params: &SetRiskLevelParams) -> AppResul
     let (va, _bump) = derive_vault_authority_pda(&params.program_id);
     let accounts = vec![
         AccountMeta::new(params.governance, true),
-        AccountMeta::new_readonly(va, false),
+        AccountMeta::new(va, false),
     ];
-    let data = vec![53u8, params.risk_level];
+    let mut data = anchor_discriminator("set_risk_level").to_vec();
+    data.push(params.risk_level);
     Ok(Instruction { program_id: params.program_id, accounts, data })
 }
 
@@ -623,6 +628,7 @@ pub async fn subscribe_to_account(_pubkey: Pubkey) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use solana_sdk::{instruction::AccountMeta, pubkey::Pubkey};
 
     #[test]
     fn test_compute_budget_ixs() {
@@ -630,6 +636,150 @@ mod tests {
         assert_eq!(ixs.len(), 2);
         assert_eq!(ixs[0].program_id, solana_sdk::compute_budget::id());
         assert_eq!(ixs[1].program_id, solana_sdk::compute_budget::id());
+    }
+
+    #[test]
+    fn test_initialize_vault_instruction_layout() {
+        let program_id = Pubkey::new_unique();
+        let user = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let ix = build_instruction_initialize_vault(&program_id, &user, &mint).unwrap();
+        let (vault_pda, _) = derive_vault_pda(&user, &program_id);
+        let vault_ata = derive_associated_token_address(&vault_pda, &mint);
+        assert_eq!(ix.program_id, program_id);
+        assert_eq!(ix.accounts.len(), 8);
+        assert_eq!(ix.accounts[0], AccountMeta::new(user, true));
+        assert_eq!(ix.accounts[1], AccountMeta::new(vault_pda, false));
+        assert_eq!(ix.accounts[2], AccountMeta::new(vault_ata, false));
+        assert_eq!(ix.accounts[3], AccountMeta::new_readonly(mint, false));
+        assert_eq!(ix.accounts[4], AccountMeta::new_readonly(solana_sdk::system_program::id(), false));
+        assert_eq!(ix.accounts[5], AccountMeta::new_readonly(spl_token::id(), false));
+        assert_eq!(ix.accounts[6], AccountMeta::new_readonly(spl_ata::id(), false));
+        assert_eq!(ix.accounts[7], AccountMeta::new_readonly(solana_sdk::sysvar::rent::id(), false));
+        let disc: [u8; 8] = ix.data[..8].try_into().unwrap();
+        assert_eq!(disc, anchor_discriminator("initialize_vault"));
+    }
+
+    #[test]
+    fn test_deposit_instruction_amount_encoding() {
+        let params = DepositParams {
+            program_id: Pubkey::new_unique(),
+            owner: Pubkey::new_unique(),
+            mint: Pubkey::new_unique(),
+            amount: 42,
+        };
+        let ix = build_instruction_deposit(&params).unwrap();
+        let (vault_pda, _) = derive_vault_pda(&params.owner, &params.program_id);
+        let user_ata = derive_associated_token_address(&params.owner, &params.mint);
+        let vault_ata = derive_associated_token_address(&vault_pda, &params.mint);
+        assert_eq!(ix.accounts.len(), 6);
+        assert_eq!(ix.accounts[0], AccountMeta::new(params.owner, true));
+        assert_eq!(ix.accounts[1], AccountMeta::new_readonly(params.owner, false));
+        assert_eq!(ix.accounts[2], AccountMeta::new(vault_pda, false));
+        assert_eq!(ix.accounts[3], AccountMeta::new(user_ata, false));
+        assert_eq!(ix.accounts[4], AccountMeta::new(vault_ata, false));
+        assert_eq!(ix.accounts[5], AccountMeta::new_readonly(spl_token::id(), false));
+        let disc: [u8; 8] = ix.data[..8].try_into().unwrap();
+        assert_eq!(disc, anchor_discriminator("deposit"));
+        let amount = u64::from_le_bytes(ix.data[8..16].try_into().unwrap());
+        assert_eq!(amount, 42);
+    }
+
+    #[test]
+    fn test_withdraw_instruction_amount_encoding() {
+        let params = WithdrawParams {
+            program_id: Pubkey::new_unique(),
+            owner: Pubkey::new_unique(),
+            mint: Pubkey::new_unique(),
+            amount: 77,
+        };
+        let ix = build_instruction_withdraw(&params).unwrap();
+        let (vault_pda, _) = derive_vault_pda(&params.owner, &params.program_id);
+        let user_ata = derive_associated_token_address(&params.owner, &params.mint);
+        let vault_ata = derive_associated_token_address(&vault_pda, &params.mint);
+        assert_eq!(ix.accounts.len(), 6);
+        assert_eq!(ix.accounts[0], AccountMeta::new(params.owner, true));
+        assert_eq!(ix.accounts[1], AccountMeta::new_readonly(params.owner, false));
+        assert_eq!(ix.accounts[2], AccountMeta::new(vault_pda, false));
+        assert_eq!(ix.accounts[3], AccountMeta::new(vault_ata, false));
+        assert_eq!(ix.accounts[4], AccountMeta::new(user_ata, false));
+        assert_eq!(ix.accounts[5], AccountMeta::new_readonly(spl_token::id(), false));
+        let disc: [u8; 8] = ix.data[..8].try_into().unwrap();
+        assert_eq!(disc, anchor_discriminator("withdraw"));
+        let amount = u64::from_le_bytes(ix.data[8..16].try_into().unwrap());
+        assert_eq!(amount, 77);
+    }
+
+    #[test]
+    fn test_transfer_collateral_instruction_accounts() {
+        let params = TransferCollateralParams {
+            program_id: Pubkey::new_unique(),
+            caller_program: Pubkey::new_unique(),
+            from_owner: Pubkey::new_unique(),
+            to_owner: Pubkey::new_unique(),
+            mint: Pubkey::new_unique(),
+            amount: 123,
+        };
+        let ix = build_instruction_transfer_collateral(&params).unwrap();
+        let (from_vault, _) = derive_vault_pda(&params.from_owner, &params.program_id);
+        let (to_vault, _) = derive_vault_pda(&params.to_owner, &params.program_id);
+        let from_vault_ata = derive_associated_token_address(&from_vault, &params.mint);
+        let to_vault_ata = derive_associated_token_address(&to_vault, &params.mint);
+        let (va, _) = derive_vault_authority_pda(&params.program_id);
+        assert_eq!(ix.program_id, params.program_id);
+        assert_eq!(ix.accounts.len(), 8);
+        assert_eq!(ix.accounts[0], AccountMeta::new_readonly(params.caller_program, false));
+        assert_eq!(ix.accounts[1], AccountMeta::new_readonly(va, false));
+        assert_eq!(ix.accounts[2], AccountMeta::new_readonly(solana_sdk::sysvar::instructions::ID, false));
+        assert_eq!(ix.accounts[3], AccountMeta::new(from_vault, false));
+        assert_eq!(ix.accounts[4], AccountMeta::new(to_vault, false));
+        assert_eq!(ix.accounts[5], AccountMeta::new(from_vault_ata, false));
+        assert_eq!(ix.accounts[6], AccountMeta::new(to_vault_ata, false));
+        assert_eq!(ix.accounts[7], AccountMeta::new_readonly(spl_token::id(), false));
+        let disc: [u8; 8] = ix.data[..8].try_into().unwrap();
+        assert_eq!(disc, anchor_discriminator("transfer_collateral"));
+        let amount = u64::from_le_bytes(ix.data[8..16].try_into().unwrap());
+        assert_eq!(amount, 123);
+    }
+
+    #[test]
+    fn test_yield_instruction_builders() {
+        let owner = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
+        let yield_program = Pubkey::new_unique();
+        let deposit_ix = build_instruction_yield_deposit(&YieldDepositParams { program_id, owner, amount: 10, yield_program }).unwrap();
+        let withdraw_ix = build_instruction_yield_withdraw(&YieldWithdrawParams { program_id, owner, amount: 11, yield_program }).unwrap();
+        let comp_ix = build_instruction_compound_yield(&CompoundYieldParams { program_id, owner, compounded_amount: 12, yield_program }).unwrap();
+        for ix in [&deposit_ix, &withdraw_ix, &comp_ix] {
+            assert_eq!(ix.accounts.len(), 5);
+            assert!(ix.accounts[0].is_signer);
+            assert!(!ix.accounts[1].is_signer);
+            assert!(!ix.accounts[2].is_signer);
+            assert!(!ix.accounts[3].is_signer);
+            assert_eq!(ix.accounts[4].pubkey, yield_program);
+        }
+        let deposit_disc: [u8; 8] = deposit_ix.data[..8].try_into().unwrap();
+        assert_eq!(deposit_disc, anchor_discriminator("yield_deposit"));
+        assert_eq!(u64::from_le_bytes(deposit_ix.data[8..16].try_into().unwrap()), 10);
+        let withdraw_disc: [u8; 8] = withdraw_ix.data[..8].try_into().unwrap();
+        assert_eq!(withdraw_disc, anchor_discriminator("yield_withdraw"));
+        assert_eq!(u64::from_le_bytes(withdraw_ix.data[8..16].try_into().unwrap()), 11);
+        let comp_disc: [u8; 8] = comp_ix.data[..8].try_into().unwrap();
+        assert_eq!(comp_disc, anchor_discriminator("compound_yield"));
+        assert_eq!(u64::from_le_bytes(comp_ix.data[8..16].try_into().unwrap()), 12);
+    }
+
+    #[test]
+    fn test_pm_lock_unlock_opcodes() {
+        let pm_program = Pubkey::new_unique();
+        let vault_program = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let lock_ix = build_instruction_pm_lock(&pm_program, &vault_program, &owner, 5).unwrap();
+        let unlock_ix = build_instruction_pm_unlock(&pm_program, &vault_program, &owner, 6).unwrap();
+        assert_eq!(lock_ix.data[0], 10);
+        assert_eq!(unlock_ix.data[0], 11);
+        assert_eq!(u64::from_le_bytes(lock_ix.data[1..9].try_into().unwrap()), 5);
+        assert_eq!(u64::from_le_bytes(unlock_ix.data[1..9].try_into().unwrap()), 6);
     }
 }
 

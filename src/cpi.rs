@@ -1,5 +1,6 @@
 use crate::{api::AppState, db, error::{AppError, AppResult}, solana_client::{build_compute_budget_instructions, build_instruction_pm_lock, build_instruction_pm_unlock, load_deployer_keypair, send_transaction_with_retries}};
-use solana_sdk::{pubkey::Pubkey, transaction::Transaction};
+use solana_sdk::{pubkey::Pubkey, signature::Signer, transaction::Transaction};
+use std::str::FromStr;
 
 #[derive(Clone)]
 pub struct CPIManager {
