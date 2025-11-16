@@ -2,9 +2,13 @@ use crate::{api::AppState, db, notify::Notifier};
 use bs58;
 use futures::StreamExt;
 use solana_client::nonblocking::pubsub_client::PubsubClient;
-use solana_client::rpc_config::{RpcTransactionConfig, RpcTransactionLogsConfig, RpcTransactionLogsFilter};
+use solana_client::rpc_config::{
+    RpcTransactionConfig, RpcTransactionLogsConfig, RpcTransactionLogsFilter,
+};
 use solana_sdk::{pubkey::Pubkey, signature::Signature};
-use solana_transaction_status::{EncodedTransaction, UiMessage, UiRawMessage, UiTransactionEncoding};
+use solana_transaction_status::{
+    EncodedTransaction, UiMessage, UiRawMessage, UiTransactionEncoding,
+};
 use std::{str::FromStr, sync::Arc};
 use tokio::time::{sleep, Duration};
 use tracing::{info, warn};
@@ -53,10 +57,19 @@ pub async fn run_event_indexer(state: AppState, notifier: Arc<Notifier>) {
                                                 "amount": amount_opt
                                             });
                                             let message = payload.to_string();
-                                            let _ = match payload.get("kind").and_then(|k| k.as_str()) {
-                                                Some("deposit") => notifier.deposit_tx.send(message.clone()),
-                                                Some("withdraw") => notifier.withdraw_tx.send(message.clone()),
-                                                Some("lock") => notifier.lock_tx.send(message.clone()),
+                                            let _ = match payload
+                                                .get("kind")
+                                                .and_then(|k| k.as_str())
+                                            {
+                                                Some("deposit") => {
+                                                    notifier.deposit_tx.send(message.clone())
+                                                }
+                                                Some("withdraw") => {
+                                                    notifier.withdraw_tx.send(message.clone())
+                                                }
+                                                Some("lock") => {
+                                                    notifier.lock_tx.send(message.clone())
+                                                }
                                                 Some("unlock") => notifier.unlock_tx.send(message),
                                                 _ => Ok(0),
                                             };
@@ -95,8 +108,13 @@ fn infer_event_kind(logs: &[String]) -> String {
     "unknown".to_string()
 }
 
-async fn parse_and_update(state: &AppState, signature_str: &str, kind: &str) -> Result<(String, Option<u64>), String> {
-    let signature = Signature::from_str(signature_str).map_err(|e| format!("bad signature: {e}"))?;
+async fn parse_and_update(
+    state: &AppState,
+    signature_str: &str,
+    kind: &str,
+) -> Result<(String, Option<u64>), String> {
+    let signature =
+        Signature::from_str(signature_str).map_err(|e| format!("bad signature: {e}"))?;
     let cfg = RpcTransactionConfig {
         encoding: Some(UiTransactionEncoding::Json),
         max_supported_transaction_version: Some(0),
@@ -110,7 +128,11 @@ async fn parse_and_update(state: &AppState, signature_str: &str, kind: &str) -> 
         .map_err(|e| format!("get_transaction: {e}"))?;
     let (owner, amount_opt) = match &tx.transaction.transaction {
         EncodedTransaction::Json(ui_tx) => match &ui_tx.message {
-            UiMessage::Raw(UiRawMessage { account_keys, instructions, .. }) => {
+            UiMessage::Raw(UiRawMessage {
+                account_keys,
+                instructions,
+                ..
+            }) => {
                 let prog_index = account_keys
                     .iter()
                     .position(|k| k == &state.cfg.program_id)
@@ -127,8 +149,9 @@ async fn parse_and_update(state: &AppState, signature_str: &str, kind: &str) -> 
                     .get(*owner_index as usize)
                     .ok_or_else(|| "owner index OOB".to_string())?
                     .clone();
-                let data_bytes =
-                    bs58::decode(&ix.data).into_vec().map_err(|e| format!("data decode: {e}"))?;
+                let data_bytes = bs58::decode(&ix.data)
+                    .into_vec()
+                    .map_err(|e| format!("data decode: {e}"))?;
                 let amount_opt = if data_bytes.len() >= 9 {
                     Some(u64::from_le_bytes(data_bytes[1..9].try_into().unwrap()))
                 } else {
@@ -141,8 +164,10 @@ async fn parse_and_update(state: &AppState, signature_str: &str, kind: &str) -> 
         _ => ("unknown".to_string(), None),
     };
 
-    let (token_account_opt, prev_balance) =
-        db::get_vault(&state.pool, &owner).await.map_err(|e| format!("db get_vault: {e}"))?.unwrap_or((None, 0));
+    let (token_account_opt, prev_balance) = db::get_vault(&state.pool, &owner)
+        .await
+        .map_err(|e| format!("db get_vault: {e}"))?
+        .unwrap_or((None, 0));
     let (dep_delta, wd_delta) = match kind {
         "deposit" => (amount_opt.unwrap_or(0) as i64, 0i64),
         "withdraw" => (0i64, amount_opt.unwrap_or(0) as i64),

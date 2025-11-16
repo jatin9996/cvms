@@ -13,7 +13,8 @@ pub async fn run_yield_scheduler(state: AppState) {
         // Placeholder: iterate vaults and record a compound check event
         if let Ok(vaults) = db::list_vaults(&state.pool).await {
             for (owner, _token_acc, _bal) in vaults.into_iter() {
-                let _ = db::insert_yield_event(&state.pool, &owner, "auto", 0, "compound_check").await;
+                let _ =
+                    db::insert_yield_event(&state.pool, &owner, "auto", 0, "compound_check").await;
             }
         }
 
@@ -21,5 +22,3 @@ pub async fn run_yield_scheduler(state: AppState) {
         tokio::time::sleep(interval).await;
     }
 }
-
-

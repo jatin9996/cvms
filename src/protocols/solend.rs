@@ -22,5 +22,3 @@ pub async fn fetch_usdt_apy() -> Result<f64> {
     }
     Ok(0.0)
 }
-
-

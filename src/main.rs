@@ -5,13 +5,16 @@ use axum::Router;
 use dotenvy::dotenv;
 use tracing::info;
 
-use cvmsback::{api, api::AppState, config::AppConfig, db, solana_client::SolanaClient, telemetry, notify::Notifier, ops::RateLimiter, tasks};
+use cvmsback::{
+    api, api::AppState, config::AppConfig, db, notify::Notifier, ops::RateLimiter,
+    solana_client::SolanaClient, tasks, telemetry,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-	// Load environment variables from .env if present
-	dotenv().ok();
-	telemetry::init_tracing();
+    // Load environment variables from .env if present
+    dotenv().ok();
+    telemetry::init_tracing();
 
     let cfg = AppConfig::from_env();
     let pool = db::connect(&cfg.database_url).await?;
@@ -20,7 +23,13 @@ async fn main() -> Result<()> {
     let sol = SolanaClient::new(&cfg.solana_rpc_url);
     let notifier = Notifier::new(1024);
     let rate_limiter = std::sync::Arc::new(RateLimiter::new(10));
-    let state = AppState { pool: pool.clone(), cfg: cfg.clone(), sol, notifier: notifier.clone(), rate_limiter: rate_limiter.clone() };
+    let state = AppState {
+        pool: pool.clone(),
+        cfg: cfg.clone(),
+        sol,
+        notifier: notifier.clone(),
+        rate_limiter: rate_limiter.clone(),
+    };
 
     // background tasks
     {
@@ -62,8 +71,8 @@ async fn main() -> Result<()> {
 
     let addr: SocketAddr = format!("{}:{}", cfg.host, cfg.port).parse()?;
 
-	info!(%addr, "starting server");
-	axum::serve(tokio::net::TcpListener::bind(addr).await?, app).await?;
+    info!(%addr, "starting server");
+    axum::serve(tokio::net::TcpListener::bind(addr).await?, app).await?;
 
-	Ok(())
+    Ok(())
 }

@@ -3,20 +3,19 @@ use axum_extra::{
     extract::TypedHeader,
     headers::{authorization::Bearer, Authorization},
 };
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use solana_sdk::{pubkey::Pubkey, signature::Signer};
 use std::str::FromStr;
 
 use crate::{
 	auth::{verify_admin_jwt, verify_wallet_signature},
-	config::AppConfig,
 	db,
-	error::AppError,
 	solana_client::{
         build_compute_budget_instructions, build_instruction_deposit, build_instruction_initialize_vault,
-        build_instruction_withdraw, build_instruction_withdraw_multisig, build_instruction_schedule_timelock, load_deployer_keypair, DepositParams, WithdrawParams,
+        build_instruction_withdraw, build_instruction_schedule_timelock, load_deployer_keypair, DepositParams, WithdrawParams,
         fetch_vault_multisig_config, build_partial_withdraw_tx, WithdrawMultisigParams,
-		build_instruction_pm_lock, build_instruction_pm_unlock, send_transaction_with_retries,
+		send_transaction_with_retries,
         build_instruction_emergency_withdraw, EmergencyWithdrawParams,
         build_instruction_yield_deposit, build_instruction_yield_withdraw, build_instruction_compound_yield,
         YieldDepositParams, YieldWithdrawParams, CompoundYieldParams,
@@ -28,7 +27,7 @@ use crate::{
         build_instruction_set_risk_level, AddYieldProgramParams, RemoveYieldProgramParams, SetRiskLevelParams,
 	},
 };
-use crate::{vault::VaultManager, cpi::CPIManager};
+use crate::cpi::CPIManager;
 use super::AppState;
 
 pub async fn health() -> Json<serde_json::Value> {
@@ -67,7 +66,7 @@ pub async fn vault_initialize(State(state): State<AppState>, Json(req): Json<Ini
     let payload = serde_json::json!({
         "program_id": ix.program_id.to_string(),
         "accounts": accounts,
-        "data": base64::encode(ix.data),
+        "data": STANDARD.encode(&ix.data),
     });
     (StatusCode::OK, Json(serde_json::json!({ "payload": payload })))
 }
@@ -100,7 +99,7 @@ pub async fn vault_deposit(State(state): State<AppState>, Json(req): Json<Deposi
         "accounts": ix.accounts.iter().map(|a| serde_json::json!({
             "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable
         })).collect::<Vec<_>>(),
-        "data": base64::encode(ix.data),
+        "data": STANDARD.encode(&ix.data),
     });
     let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "deposit_request", serde_json::json!({ "amount": req.amount, "nonce": req.nonce })).await;
     (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
@@ -469,13 +468,13 @@ pub async fn vault_approve_withdraw(State(state): State<AppState>, Json(req): Js
         let params = WithdrawMultisigParams { program_id, owner: owner_pk, authority: authority_pk, amount: amount as u64, other_signers: signer_pubkeys.clone() };
         let payer = match load_deployer_keypair(&state.cfg.deployer_keypair_path) { Ok(kp) => kp, Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))) };
         let raw = match build_partial_withdraw_tx(&state.sol, &payer, &params).await { Ok(b) => b, Err(e) => return (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": e.to_string() }))) };
-        let tx_b64 = base64::encode(raw);
+        let tx_b64 = STANDARD.encode(&raw);
         let _ = db::ms_set_status(&state.pool, &req.proposal_id, "approved").await;
 
         // Notify signers (including authority and others) via webhook with the partial tx
         let signer_strings: Vec<String> = std::iter::once(req.signer.clone()).chain(approvals.into_iter().filter(|s| s != &req.signer)).collect();
         if let Ok(contacts) = db::ms_get_contacts_for(&state.pool, &signer_strings).await {
-            for (pk, _email, webhook) in contacts.into_iter() {
+            for (_pk, _email, webhook) in contacts.into_iter() {
                 if let Some(url) = webhook {
                     let payload = serde_json::json!({ "action": "partial_tx_ready", "proposal_id": req.proposal_id, "owner": owner, "amount": amount, "tx_base64": tx_b64.clone(), "authority": req.signer });
                     let _ = send_webhook(&url, &payload).await;
@@ -581,8 +580,12 @@ pub struct NonceResponse { pub nonce: String }
 pub async fn issue_nonce(State(state): State<AppState>, Json(req): Json<NonceRequest>) -> impl IntoResponse {
     let nonce = uuid::Uuid::new_v4().to_string();
     match db::insert_nonce(&state.pool, &nonce, &req.owner).await {
-        Ok(_) => (StatusCode::OK, Json(serde_json::json!({ "nonce": nonce }))),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
+        Ok(_) => Json(NonceResponse { nonce }).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e.to_string() })),
+        )
+            .into_response(),
     }
 }
 
@@ -720,7 +723,7 @@ pub async fn vault_yield_deposit(State(state): State<AppState>, Json(req): Json<
         "accounts": ix.accounts.iter().map(|a| serde_json::json!({
             "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable
         })).collect::<Vec<_>>(),
-        "data": base64::encode(ix.data),
+        "data": STANDARD.encode(&ix.data),
     });
     let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "yield_deposit_request", serde_json::json!({ "amount": req.amount, "yield_program": req.yield_program, "nonce": req.nonce })).await;
     (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
@@ -745,7 +748,7 @@ pub async fn vault_yield_withdraw(State(state): State<AppState>, Json(req): Json
         "accounts": ix.accounts.iter().map(|a| serde_json::json!({
             "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable
         })).collect::<Vec<_>>(),
-        "data": base64::encode(ix.data),
+        "data": STANDARD.encode(&ix.data),
     });
     let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "yield_withdraw_request", serde_json::json!({ "amount": req.amount, "yield_program": req.yield_program, "nonce": req.nonce })).await;
     (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
@@ -773,7 +776,7 @@ pub async fn vault_compound_yield(State(state): State<AppState>, Json(req): Json
         "accounts": ix.accounts.iter().map(|a| serde_json::json!({
             "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable
         })).collect::<Vec<_>>(),
-        "data": base64::encode(ix.data),
+        "data": STANDARD.encode(&ix.data),
     });
     let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "yield_compound_request", serde_json::json!({ "compounded_amount": req.compounded_amount, "yield_program": req.yield_program, "nonce": req.nonce })).await;
     (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
@@ -877,7 +880,7 @@ pub async fn admin_withdraw_whitelist_add(State(state): State<AppState>, Json(re
     let payload = serde_json::json!({
         "program_id": ix.program_id.to_string(),
         "accounts": ix.accounts.iter().map(|a| serde_json::json!({ "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable })).collect::<Vec<_>>(),
-        "data": base64::encode(ix.data),
+        "data": STANDARD.encode(&ix.data),
     });
     let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "whitelist_add_requested", serde_json::json!({ "address": req.address })).await;
     (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
@@ -894,7 +897,7 @@ pub async fn admin_withdraw_whitelist_remove(State(state): State<AppState>, Json
     let payload = serde_json::json!({
         "program_id": ix.program_id.to_string(),
         "accounts": ix.accounts.iter().map(|a| serde_json::json!({ "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable })).collect::<Vec<_>>(),
-        "data": base64::encode(ix.data),
+        "data": STANDARD.encode(&ix.data),
     });
     let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "whitelist_remove_requested", serde_json::json!({ "address": req.address })).await;
     (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
@@ -911,7 +914,7 @@ pub async fn admin_withdraw_min_delay_set(State(state): State<AppState>, Json(re
     let payload = serde_json::json!({
         "program_id": ix.program_id.to_string(),
         "accounts": ix.accounts.iter().map(|a| serde_json::json!({ "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable })).collect::<Vec<_>>(),
-        "data": base64::encode(ix.data),
+        "data": STANDARD.encode(&ix.data),
     });
     let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "min_delay_set_requested", serde_json::json!({ "seconds": req.seconds })).await;
     (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
@@ -928,7 +931,7 @@ pub async fn admin_withdraw_rate_limit_set(State(state): State<AppState>, Json(r
     let payload = serde_json::json!({
         "program_id": ix.program_id.to_string(),
         "accounts": ix.accounts.iter().map(|a| serde_json::json!({ "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable })).collect::<Vec<_>>(),
-        "data": base64::encode(ix.data),
+        "data": STANDARD.encode(&ix.data),
     });
     let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "rate_limit_set_requested", serde_json::json!({ "window_seconds": req.window_seconds, "max_amount": req.max_amount })).await;
     (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))
@@ -1171,7 +1174,7 @@ pub async fn analytics_distribution(State(state): State<AppState>) -> impl IntoR
         Ok(rs) => {
             let mut buckets = vec![0u64; 10];
             for r in rs.into_iter() {
-                let v = (r.total_balance.unwrap_or(0) as u64);
+                let v = r.total_balance.unwrap_or(0) as u64;
                 let idx = std::cmp::min(9, (v as f64).log10().floor().max(0.0) as usize);
                 buckets[idx] += 1;
             }
@@ -1220,7 +1223,7 @@ pub async fn vault_request_withdraw(State(state): State<AppState>, Json(req): Js
     let payload = serde_json::json!({
         "program_id": ix.program_id.to_string(),
         "accounts": ix.accounts.iter().map(|a| serde_json::json!({ "pubkey": a.pubkey.to_string(), "is_signer": a.is_signer, "is_writable": a.is_writable })).collect::<Vec<_>>(),
-        "data": base64::encode(ix.data),
+        "data": STANDARD.encode(&ix.data),
     });
     let _ = db::insert_audit_log(&state.pool, Some(&req.owner), "withdraw_request_created", serde_json::json!({ "amount": req.amount })).await;
     (StatusCode::OK, Json(serde_json::json!({ "instruction": payload })))

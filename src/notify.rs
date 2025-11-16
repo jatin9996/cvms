@@ -3,30 +3,38 @@ use tokio::sync::broadcast;
 
 #[derive(Clone)]
 pub struct Notifier {
-	pub deposit_tx: broadcast::Sender<String>,
-	pub withdraw_tx: broadcast::Sender<String>,
-	pub lock_tx: broadcast::Sender<String>,
-	pub unlock_tx: broadcast::Sender<String>,
+    pub deposit_tx: broadcast::Sender<String>,
+    pub withdraw_tx: broadcast::Sender<String>,
+    pub lock_tx: broadcast::Sender<String>,
+    pub unlock_tx: broadcast::Sender<String>,
     pub timelock_tx: broadcast::Sender<String>,
-	pub vault_balance_tx: broadcast::Sender<String>,
-	pub tvl_tx: broadcast::Sender<String>,
-	pub security_tx: broadcast::Sender<String>,
-	pub analytics_tx: broadcast::Sender<String>,
+    pub vault_balance_tx: broadcast::Sender<String>,
+    pub tvl_tx: broadcast::Sender<String>,
+    pub security_tx: broadcast::Sender<String>,
+    pub analytics_tx: broadcast::Sender<String>,
 }
 
 impl Notifier {
-	pub fn new(capacity: usize) -> Arc<Self> {
-		let (deposit_tx, _) = broadcast::channel(capacity);
-		let (withdraw_tx, _) = broadcast::channel(capacity);
-		let (lock_tx, _) = broadcast::channel(capacity);
-		let (unlock_tx, _) = broadcast::channel(capacity);
+    pub fn new(capacity: usize) -> Arc<Self> {
+        let (deposit_tx, _) = broadcast::channel(capacity);
+        let (withdraw_tx, _) = broadcast::channel(capacity);
+        let (lock_tx, _) = broadcast::channel(capacity);
+        let (unlock_tx, _) = broadcast::channel(capacity);
         let (timelock_tx, _) = broadcast::channel(capacity);
-		let (vault_balance_tx, _) = broadcast::channel(capacity);
-		let (tvl_tx, _) = broadcast::channel(capacity);
-		let (security_tx, _) = broadcast::channel(capacity);
-		let (analytics_tx, _) = broadcast::channel(capacity);
-        Arc::new(Self { deposit_tx, withdraw_tx, lock_tx, unlock_tx, timelock_tx, vault_balance_tx, tvl_tx, security_tx, analytics_tx })
-	}
+        let (vault_balance_tx, _) = broadcast::channel(capacity);
+        let (tvl_tx, _) = broadcast::channel(capacity);
+        let (security_tx, _) = broadcast::channel(capacity);
+        let (analytics_tx, _) = broadcast::channel(capacity);
+        Arc::new(Self {
+            deposit_tx,
+            withdraw_tx,
+            lock_tx,
+            unlock_tx,
+            timelock_tx,
+            vault_balance_tx,
+            tvl_tx,
+            security_tx,
+            analytics_tx,
+        })
+    }
 }
-
-
