@@ -23,13 +23,40 @@ async fn main() -> Result<()> {
     let state = AppState { pool: pool.clone(), cfg: cfg.clone(), sol, notifier: notifier.clone(), rate_limiter: rate_limiter.clone() };
 
     // background tasks
-    let indexer_state = state.clone();
-    let recon_state = state.clone();
-    tokio::spawn(async move { tasks::event_indexer::run_event_indexer(indexer_state, notifier.clone()).await; });
-    tokio::spawn(async move { tasks::reconciliation::run_reconciliation(recon_state.clone(), notifier.clone()).await; });
-    tokio::spawn(async move { tasks::monitor::run_monitor(recon_state.clone(), notifier.clone()).await; });
-    tokio::spawn(async move { tasks::timelocks::run_timelock_cron(recon_state.clone(), notifier.clone()).await; });
-    tokio::spawn(async move { tasks::yield_tasks::run_yield_scheduler(recon_state).await; });
+    {
+        let indexer_state = state.clone();
+        let notifier = notifier.clone();
+        tokio::spawn(async move {
+            tasks::event_indexer::run_event_indexer(indexer_state, notifier.clone()).await;
+        });
+    }
+    {
+        let recon_state = state.clone();
+        let notifier = notifier.clone();
+        tokio::spawn(async move {
+            tasks::reconciliation::run_reconciliation(recon_state.clone(), notifier.clone()).await;
+        });
+    }
+    {
+        let recon_state = state.clone();
+        let notifier = notifier.clone();
+        tokio::spawn(async move {
+            tasks::monitor::run_monitor(recon_state.clone(), notifier.clone()).await;
+        });
+    }
+    {
+        let recon_state = state.clone();
+        let notifier = notifier.clone();
+        tokio::spawn(async move {
+            tasks::timelocks::run_timelock_cron(recon_state.clone(), notifier.clone()).await;
+        });
+    }
+    {
+        let recon_state = state.clone();
+        tokio::spawn(async move {
+            tasks::yield_tasks::run_yield_scheduler(recon_state).await;
+        });
+    }
 
     let app: Router = api::router(state);
 

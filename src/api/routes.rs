@@ -1126,11 +1126,30 @@ pub async fn vault_limits(State(state): State<AppState>, Path(owner): Path<Strin
     (StatusCode::OK, Json(serde_json::json!({ "window_seconds": 86400, "used": used, "limit": null })))
 }
 
+#[derive(sqlx::FromRow)]
+struct AnalyticsTvlRow {
+    day: Option<time::OffsetDateTime>,
+    delta: Option<i64>,
+}
+
+#[derive(sqlx::FromRow)]
+struct VaultTotalRow {
+    total_balance: Option<i64>,
+}
+
+#[derive(sqlx::FromRow)]
+struct VaultUtilizationRow {
+    total_balance: Option<i64>,
+    locked_balance: Option<i64>,
+}
+
 pub async fn analytics_tvl_series(State(state): State<AppState>) -> impl IntoResponse {
     // Aggregate transactions by day to build series
-    let rows = sqlx::query!(
+    let rows = sqlx::query_as::<_, AnalyticsTvlRow>(
         "SELECT date_trunc('day', created_at) AS day, SUM(CASE WHEN kind = 'deposit' THEN amount ELSE -amount END) AS delta FROM transactions GROUP BY 1 ORDER BY 1 ASC"
-    ).fetch_all(&state.pool).await;
+    )
+    .fetch_all(&state.pool)
+    .await;
     match rows {
         Ok(rs) => {
             let mut tvl = 0i64;
@@ -1147,7 +1166,7 @@ pub async fn analytics_tvl_series(State(state): State<AppState>) -> impl IntoRes
 }
 
 pub async fn analytics_distribution(State(state): State<AppState>) -> impl IntoResponse {
-    let rows = sqlx::query!("SELECT total_balance FROM vaults").fetch_all(&state.pool).await;
+    let rows = sqlx::query_as::<_, VaultTotalRow>("SELECT total_balance FROM vaults").fetch_all(&state.pool).await;
     match rows {
         Ok(rs) => {
             let mut buckets = vec![0u64; 10];
@@ -1163,7 +1182,7 @@ pub async fn analytics_distribution(State(state): State<AppState>) -> impl IntoR
 }
 
 pub async fn analytics_utilization(State(state): State<AppState>) -> impl IntoResponse {
-    let rows = sqlx::query!("SELECT total_balance, locked_balance FROM vaults").fetch_all(&state.pool).await;
+    let rows = sqlx::query_as::<_, VaultUtilizationRow>("SELECT total_balance, locked_balance FROM vaults").fetch_all(&state.pool).await;
     match rows {
         Ok(rs) => {
             let mut total: i128 = 0;
