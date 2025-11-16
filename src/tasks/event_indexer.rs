@@ -28,7 +28,7 @@ pub async fn run_event_indexer(state: AppState, notifier: Arc<Notifier>) {
         match PubsubClient::new(&ws_url).await {
             Ok(client) => {
                 let filter = RpcTransactionLogsFilter::Mentions(vec![program]);
-                let config = RpcTransactionLogsConfig::default();
+                let config = RpcTransactionLogsConfig { commitment: None };
                 match client.logs_subscribe(filter, config).await {
                     Ok((mut stream, unsubscribe)) => {
                         info!("event indexer subscribed to logs");

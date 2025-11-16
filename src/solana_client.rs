@@ -175,7 +175,7 @@ pub async fn send_transaction(client: &SolanaClient, tx: &Transaction) -> AppRes
 	let sig = client
 		.rpc
 		.as_ref()
-		.send_and_confirm_serialized_transaction(tx)
+		.send_and_confirm_transaction(tx)
 		.await
 		.map_err(|e| AppError::Solana(format!("send_and_confirm_transaction failed: {e}")))?;
 	Ok(sig)

@@ -1,6 +1,7 @@
 use axum::{routing::{get, post, delete}, Router};
-use tower_governor::{GovernorConfigBuilder, GovernorLayer};
 use sqlx::PgPool;
+use std::sync::Arc;
+use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 
 use crate::{config::AppConfig, solana_client::SolanaClient, notify::Notifier, ops::RateLimiter};
 
@@ -17,11 +18,16 @@ pub struct AppState {
 }
 
 pub fn router(state: AppState) -> Router {
-    let governor_conf = Box::leak(Box::new(GovernorConfigBuilder::default()
-        .per_second(5)
-        .burst_size(10)
-        .finish()
-        .expect("governor config")));
+    let governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(5)
+            .burst_size(10)
+            .finish()
+            .expect("governor config"),
+    );
+    let governor_layer = GovernorLayer {
+        config: governor_conf.clone(),
+    };
 
     Router::new()
 		.route("/health", get(routes::health))
@@ -29,8 +35,8 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/nonce", post(routes::issue_nonce))
 		.route("/vault/initialize", post(routes::vault_initialize))
 		.route("/vault/deposit", post(routes::vault_deposit))
-		.route("/vault/withdraw", post(routes::vault_withdraw).route_layer(GovernorLayer::new(governor_conf)))
-        .route("/vault/schedule-withdraw", post(routes::vault_schedule_withdraw).route_layer(GovernorLayer::new(governor_conf)))
+		.route("/vault/withdraw", post(routes::vault_withdraw).route_layer(governor_layer.clone()))
+        .route("/vault/schedule-withdraw", post(routes::vault_schedule_withdraw).route_layer(governor_layer.clone()))
         .route("/vault/emergency-withdraw", post(routes::vault_emergency_withdraw))
         .route("/vault/config/:owner", get(routes::vault_config))
         .route("/vault/timelocks/:owner", get(routes::vault_list_timelocks))
@@ -66,8 +72,8 @@ pub fn router(state: AppState) -> Router {
         .route("/admin/yield-program/remove", post(routes::admin_yield_program_remove))
         .route("/admin/risk-level/set", post(routes::admin_risk_level_set))
         .route("/admin/vault-token-account/set", post(routes::admin_set_vault_token_account))
-		.route("/pm/lock", post(routes::pm_lock).route_layer(GovernorLayer::new(governor_conf)))
-		.route("/pm/unlock", post(routes::pm_unlock).route_layer(GovernorLayer::new(governor_conf)))
+		.route("/pm/lock", post(routes::pm_lock).route_layer(governor_layer.clone()))
+		.route("/pm/unlock", post(routes::pm_unlock).route_layer(governor_layer))
 		.route("/internal/transfer-collateral", post(routes::internal_transfer_collateral))
 		.route("/ws", get(ws::ws_handler))
         .with_state(state)

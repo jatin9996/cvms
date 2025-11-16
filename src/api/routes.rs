@@ -1,4 +1,8 @@
-use axum::{extract::{Path, State, TypedHeader}, http::{StatusCode, HeaderMap}, response::IntoResponse, Json};
+use axum::{extract::{Path, State}, http::{StatusCode, HeaderMap}, response::IntoResponse, Json};
+use axum_extra::{
+    extract::TypedHeader,
+    headers::{authorization::Bearer, Authorization},
+};
 use serde::{Deserialize, Serialize};
 use solana_sdk::{pubkey::Pubkey, signature::Signer};
 use std::str::FromStr;
@@ -41,9 +45,6 @@ pub async fn ready(State(state): State<AppState>) -> impl IntoResponse {
 #[derive(Deserialize)]
 pub struct InitializeVaultRequest { pub user_pubkey: String }
 
-#[derive(Serialize)]
-pub struct InitializeVaultResponse { pub payload: serde_json::Value }
-
 pub async fn vault_initialize(State(state): State<AppState>, Json(req): Json<InitializeVaultRequest>) -> impl IntoResponse {
     let program_id = Pubkey::from_str(&state.cfg.program_id).unwrap_or(solana_sdk::pubkey::Pubkey::default());
     let user = match Pubkey::from_str(&req.user_pubkey) {
@@ -68,7 +69,7 @@ pub async fn vault_initialize(State(state): State<AppState>, Json(req): Json<Ini
         "accounts": accounts,
         "data": base64::encode(ix.data),
     });
-    (Json(InitializeVaultResponse { payload }),)
+    (StatusCode::OK, Json(serde_json::json!({ "payload": payload })))
 }
 
 #[derive(Deserialize)]
@@ -289,7 +290,7 @@ pub struct EmergencyWithdrawRequest { pub owner: String, pub amount: u64, pub re
 
 pub async fn vault_emergency_withdraw(
     State(state): State<AppState>,
-    TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     Json(req): Json<EmergencyWithdrawRequest>,
 ) -> impl IntoResponse {
     // Admin protection
@@ -590,7 +591,7 @@ pub struct AdminAddProgramRequest { pub program_id: String }
 
 pub async fn admin_vault_authority_add(
     State(state): State<AppState>,
-    TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     Json(req): Json<AdminAddProgramRequest>,
 ) -> impl IntoResponse {
     let token = auth.token();
@@ -615,7 +616,7 @@ pub struct AdminSetVaultTokenAccountRequest { pub owner: String, pub token_accou
 
 pub async fn admin_set_vault_token_account(
 	State(state): State<AppState>,
-	TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+	TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
 	Json(req): Json<AdminSetVaultTokenAccountRequest>,
 ) -> impl IntoResponse {
 	let token = auth.token();
@@ -786,7 +787,7 @@ pub struct TransferCollateralRequest { pub from_owner: String, pub to_owner: Str
 
 pub async fn internal_transfer_collateral(
     State(state): State<AppState>,
-    TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     Json(req): Json<TransferCollateralRequest>,
 ) -> impl IntoResponse {
     // Admin protection
@@ -938,7 +939,7 @@ pub struct AdminYieldProgramReq { pub yield_program: String }
 
 pub async fn admin_yield_program_add(
     State(state): State<AppState>,
-    TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     Json(req): Json<AdminYieldProgramReq>,
 ) -> impl IntoResponse {
     let token = auth.token();
@@ -984,7 +985,7 @@ pub async fn admin_yield_program_add(
 
 pub async fn admin_yield_program_remove(
     State(state): State<AppState>,
-    TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     Json(req): Json<AdminYieldProgramReq>,
 ) -> impl IntoResponse {
     let token = auth.token();
@@ -1033,7 +1034,7 @@ pub struct AdminRiskLevelSetReq { pub risk_level: u8 }
 
 pub async fn admin_risk_level_set(
     State(state): State<AppState>,
-    TypedHeader(auth): TypedHeader<axum::headers::Authorization<axum::headers::authorization::Bearer>>,
+    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     Json(req): Json<AdminRiskLevelSetReq>,
 ) -> impl IntoResponse {
     let token = auth.token();
