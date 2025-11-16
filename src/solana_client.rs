@@ -1,7 +1,6 @@
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_client::nonblocking::rpc_client::SerializableTransaction;
 use solana_sdk::{
 	compute_budget::ComputeBudgetInstruction,
 	instruction::{AccountMeta, Instruction},

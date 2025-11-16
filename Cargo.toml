@@ -39,6 +39,7 @@ borsh = "1"
 solana-sdk = "1.18.26"
 solana-client = "1.18.26"
 solana-transaction-status = "1.18.26"
+solana-account-decoder = "1.18.26"
 anchor-client = { version = "0.30", optional = true }
 spl-associated-token-account = "2"
 spl-token = "4.0.0"

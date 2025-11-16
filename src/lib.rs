@@ -11,5 +11,6 @@ pub mod tasks;
 pub mod vault;
 pub mod cpi;
 pub mod security;
+pub mod protocols;
 
 

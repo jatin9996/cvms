@@ -1,5 +1,5 @@
 use crate::{api::AppState, notify::Notifier};
-use tracing::warn;
+use sqlx::Row;
 
 pub async fn run_monitor(state: AppState, notifier: std::sync::Arc<Notifier>) {
 	let low_threshold = state.cfg.low_balance_threshold;
@@ -28,15 +28,18 @@ pub async fn run_monitor(state: AppState, notifier: std::sync::Arc<Notifier>) {
 
 		// Low-balance alerts
 		if low_threshold > 0 {
-			let rows = sqlx::query!("SELECT owner, total_balance, locked_balance FROM vaults")
+			let rows = sqlx::query("SELECT owner, total_balance, locked_balance FROM vaults")
 				.fetch_all(&state.pool)
 				.await;
 			if let Ok(rows) = rows {
-				for r in rows {
-					let available = r.total_balance - r.locked_balance;
+				for row in rows {
+					let owner: String = row.try_get("owner").unwrap_or_default();
+					let total_balance: i64 = row.try_get("total_balance").unwrap_or(0);
+					let locked_balance: i64 = row.try_get("locked_balance").unwrap_or(0);
+					let available = total_balance - locked_balance;
 					if available < low_threshold {
 						let _ = notifier.security_tx.send(serde_json::json!({
-							"owner": r.owner,
+							"owner": owner,
 							"type": "low_balance",
 							"available": available,
 							"threshold": low_threshold,
@@ -47,15 +50,17 @@ pub async fn run_monitor(state: AppState, notifier: std::sync::Arc<Notifier>) {
 		}
 
 		// Unusual activity: > N tx in last minute
-		let rows = sqlx::query!(
+		let rows = sqlx::query(
 			"SELECT owner, COUNT(*)::BIGINT as cnt FROM transactions WHERE created_at > NOW() - INTERVAL '60 seconds' GROUP BY owner HAVING COUNT(*) > 10"
 		).fetch_all(&state.pool).await;
 		if let Ok(rows) = rows {
-			for r in rows {
+			for row in rows {
+				let owner: String = row.try_get("owner").unwrap_or_default();
+				let cnt: i64 = row.try_get("cnt").unwrap_or(0);
 				let _ = notifier.security_tx.send(serde_json::json!({
-					"owner": r.owner,
+					"owner": owner,
 					"type": "unusual_activity",
-					"count": r.cnt.unwrap_or(0),
+					"count": cnt,
 				}).to_string());
 			}
 		}
@@ -63,5 +68,3 @@ pub async fn run_monitor(state: AppState, notifier: std::sync::Arc<Notifier>) {
 		tokio::time::sleep(std::time::Duration::from_secs(30)).await;
 	}
 }
-
-

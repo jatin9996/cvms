@@ -2,8 +2,7 @@ use crate::{api::AppState, db, notify::Notifier};
 use bs58;
 use futures::StreamExt;
 use solana_client::nonblocking::pubsub_client::PubsubClient;
-use solana_client::rpc_config::{RpcTransactionConfig, RpcTransactionLogsConfig};
-use solana_client::rpc_response::RpcTransactionLogsFilter;
+use solana_client::rpc_config::{RpcTransactionConfig, RpcTransactionLogsConfig, RpcTransactionLogsFilter};
 use solana_sdk::{pubkey::Pubkey, signature::Signature};
 use solana_transaction_status::{EncodedTransaction, UiMessage, UiRawMessage, UiTransactionEncoding};
 use std::{str::FromStr, sync::Arc};
@@ -27,7 +26,7 @@ pub async fn run_event_indexer(state: AppState, notifier: Arc<Notifier>) {
 
         match PubsubClient::new(&ws_url).await {
             Ok(client) => {
-                let filter = RpcTransactionLogsFilter::Mentions(vec![program]);
+                let filter = RpcTransactionLogsFilter::Mentions(vec![program.to_string()]);
                 let config = RpcTransactionLogsConfig { commitment: None };
                 match client.logs_subscribe(filter, config).await {
                     Ok((mut stream, unsubscribe)) => {

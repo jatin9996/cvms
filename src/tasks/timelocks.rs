@@ -5,7 +5,7 @@ pub async fn run_timelock_cron(state: AppState, notifier: std::sync::Arc<Notifie
     loop {
         // Notify items due within next 5 minutes
         if let Ok(rows) = db::timelock_due_within(&state.pool, 300).await {
-            for (id, owner, amount, unlock_at) in rows.iter() {
+            for (_id, owner, amount, unlock_at) in rows.iter() {
                 let _ = notifier.timelock_tx.send(serde_json::json!({
                     "owner": owner,
                     "amount": amount,
