@@ -27,8 +27,10 @@ impl AppConfig {
             database_url: std::env::var("DATABASE_URL").expect("DATABASE_URL must be set"),
             solana_rpc_url: std::env::var("SOLANA_RPC_URL")
                 .unwrap_or_else(|_| "https://api.devnet.solana.com".to_string()),
-            program_id: std::env::var("PROGRAM_ID").unwrap_or_default(),
-            usdt_mint: std::env::var("USDT_MINT").unwrap_or_default(),
+            program_id: std::env::var("PROGRAM_ID")
+                .unwrap_or_else(|_| "5qgA2qcz6zXYiJJkomV1LJv8UhKueyNsqeCWJd6jC9pT".to_string()),
+            usdt_mint: std::env::var("USDT_MINT")
+                .unwrap_or_else(|_| "4QHVBbG3H8kbwvcSwPnze3sC91kdeYWxNf8S5hkZ9nbZ".to_string()),
             deployer_keypair_path: std::env::var("DEPLOYER_KEYPAIR_PATH").unwrap_or_default(),
             vault_authority_pubkey: std::env::var("VAULT_AUTHORITY_PUBKEY").unwrap_or_default(),
             admin_jwt_secret: std::env::var("ADMIN_JWT_SECRET").unwrap_or_default(),
