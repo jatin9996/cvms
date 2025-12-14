@@ -183,6 +183,9 @@ pub async fn vault_deposit(
         })).collect::<Vec<_>>(),
         "data": STANDARD.encode(&ix.data),
     });
+    state.metrics.vault_deposits.inc();
+    state.metrics.vault_operations.inc();
+    
     let _ = db::insert_audit_log(
         &state.pool,
         Some(&req.owner),
@@ -325,12 +328,17 @@ pub async fn vault_withdraw(
         }
     };
 
-    let _ = db::insert_transaction(
+    state.metrics.vault_withdrawals.inc();
+    state.metrics.vault_operations.inc();
+    state.metrics.transaction_submissions.inc();
+    
+    let _ = db::insert_transaction_with_status(
         &state.pool,
         &req.owner,
         &sig.to_string(),
         Some(req.amount as i64),
         "withdraw",
+        "pending",
     )
     .await;
     // best-effort snapshot update via on-chain balance using owner as token account
@@ -338,6 +346,11 @@ pub async fn vault_withdraw(
         let _ = db::upsert_vault_token_account(&state.pool, &req.owner, &req.owner).await;
         if let Ok(chain_bal) = crate::solana_client::get_token_balance(&state.sol, &owner_pk).await
         {
+            // Invalidate cache
+            if let Some(ref cache) = state.cache {
+                cache.invalidate_balance(&req.owner).await;
+            }
+            
             let _ = db::update_vault_snapshot(
                 &state.pool,
                 &req.owner,
@@ -373,15 +386,32 @@ pub async fn vault_balance(
     State(state): State<AppState>,
     Path(owner): Path<String>,
 ) -> impl IntoResponse {
+    let start = std::time::Instant::now();
+    state.metrics.vault_balance_queries.inc();
+    
+    // Try cache first
+    if let Some(ref cache) = state.cache {
+        if let Some(cached_balance) = cache.get_balance(&owner).await {
+            state.metrics.balance_query_duration.observe(start.elapsed().as_secs_f64());
+            return (StatusCode::OK, Json(serde_json::json!({ "balance": cached_balance, "cached": true })));
+        }
+    }
+    
     // Resolve owner -> token account via DB first; fallback to interpreting as token account
     if let Ok(Some((token_acc_opt, _))) = db::get_vault(&state.pool, &owner).await {
         if let Some(token_acc) = token_acc_opt {
             if let Ok(pk) = Pubkey::from_str(&token_acc) {
                 match crate::solana_client::get_token_balance(&state.sol, &pk).await {
                     Ok(bal) => {
-                        return (StatusCode::OK, Json(serde_json::json!({ "balance": bal })))
+                        // Cache the result
+                        if let Some(ref cache) = state.cache {
+                            cache.set_balance(&owner, bal).await;
+                        }
+                        state.metrics.balance_query_duration.observe(start.elapsed().as_secs_f64());
+                        return (StatusCode::OK, Json(serde_json::json!({ "balance": bal, "cached": false })))
                     }
                     Err(e) => {
+                        state.metrics.balance_query_duration.observe(start.elapsed().as_secs_f64());
                         return (
                             StatusCode::BAD_GATEWAY,
                             Json(serde_json::json!({ "error": e.to_string() })),
@@ -394,11 +424,21 @@ pub async fn vault_balance(
     match Pubkey::from_str(&owner) {
         Ok(token_acc) => {
             match crate::solana_client::get_token_balance(&state.sol, &token_acc).await {
-                Ok(bal) => (StatusCode::OK, Json(serde_json::json!({ "balance": bal }))),
-                Err(e) => (
-                    StatusCode::BAD_GATEWAY,
-                    Json(serde_json::json!({ "error": e.to_string() })),
-                ),
+                Ok(bal) => {
+                    // Cache the result
+                    if let Some(ref cache) = state.cache {
+                        cache.set_balance(&owner, bal).await;
+                    }
+                    state.metrics.balance_query_duration.observe(start.elapsed().as_secs_f64());
+                    (StatusCode::OK, Json(serde_json::json!({ "balance": bal, "cached": false })))
+                }
+                Err(e) => {
+                    state.metrics.balance_query_duration.observe(start.elapsed().as_secs_f64());
+                    (
+                        StatusCode::BAD_GATEWAY,
+                        Json(serde_json::json!({ "error": e.to_string() })),
+                    )
+                }
             }
         }
         Err(_) => (
@@ -408,11 +448,38 @@ pub async fn vault_balance(
     }
 }
 
+pub async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
+    let encoder = prometheus::TextEncoder::new();
+    let metric_families = state.metrics.registry.gather();
+    match encoder.encode_to_string(&metric_families) {
+        Ok(metrics) => (
+            StatusCode::OK,
+            [("content-type", "text/plain; version=0.0.4")],
+            metrics,
+        ),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            [("content-type", "text/plain")],
+            "Failed to encode metrics".to_string(),
+        ),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct TransactionQueryParams {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
 pub async fn vault_transactions(
     State(state): State<AppState>,
     Path(owner): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<TransactionQueryParams>,
 ) -> impl IntoResponse {
-    match db::list_transactions(&state.pool, &owner, 50, 0).await {
+    let limit = params.limit.unwrap_or(50).min(100); // Max 100 per page
+    let offset = params.offset.unwrap_or(0);
+    
+    match db::list_transactions(&state.pool, &owner, limit, offset).await {
         Ok(rows) => {
             let items: Vec<_> = rows
                 .into_iter()
@@ -426,9 +493,21 @@ pub async fn vault_transactions(
                     })
                 })
                 .collect();
+            let next_offset = if items.len() == limit as usize {
+                Some(offset + limit)
+            } else {
+                None
+            };
             (
                 StatusCode::OK,
-                Json(serde_json::json!({ "items": items, "next": null })),
+                Json(serde_json::json!({ 
+                    "items": items, 
+                    "pagination": {
+                        "limit": limit,
+                        "offset": offset,
+                        "next": next_offset
+                    }
+                })),
             )
         }
         Err(e) => (
@@ -580,17 +659,30 @@ pub async fn vault_list_timelocks(
 }
 
 pub async fn vault_tvl(State(state): State<AppState>) -> impl IntoResponse {
+    // Try cache first
+    if let Some(ref cache) = state.cache {
+        if let Some(cached_tvl) = cache.get_tvl().await {
+            state.metrics.total_value_locked.set(cached_tvl as f64);
+            return (StatusCode::OK, Json(serde_json::json!({ "tvl": cached_tvl, "cached": true })));
+        }
+    }
+    
     let row = sqlx::query_scalar::<_, i64>(
         "SELECT COALESCE(SUM(CASE WHEN kind = 'deposit' THEN amount ELSE -amount END), 0) AS tvl FROM transactions"
     );
     let row = row.fetch_one(&state.pool).await;
     match row {
         Ok(tvl) => {
+            // Cache the result
+            if let Some(ref cache) = state.cache {
+                cache.set_tvl(tvl).await;
+            }
+            state.metrics.total_value_locked.set(tvl as f64);
             let _ = state
                 .notifier
                 .tvl_tx
                 .send(serde_json::json!({ "tvl": tvl }).to_string());
-            (StatusCode::OK, Json(serde_json::json!({ "tvl": tvl })))
+            (StatusCode::OK, Json(serde_json::json!({ "tvl": tvl, "cached": false })))
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1407,12 +1499,17 @@ pub async fn pm_lock(
     let mgr = CPIManager::new(state.clone());
     match mgr.lock(&owner, req.amount).await {
         Ok(sig) => {
-            let _ = db::insert_transaction(
+            state.metrics.vault_locks.inc();
+            state.metrics.vault_operations.inc();
+            state.metrics.transaction_submissions.inc();
+            
+            let _ = db::insert_transaction_with_status(
                 &state.pool,
                 &req.owner,
                 &sig,
                 Some(req.amount as i64),
                 "lock",
+                "pending",
             )
             .await;
             let _ = db::insert_audit_log(
@@ -1476,12 +1573,17 @@ pub async fn pm_unlock(
     let mgr = CPIManager::new(state.clone());
     match mgr.unlock(&owner, req.amount).await {
         Ok(sig) => {
-            let _ = db::insert_transaction(
+            state.metrics.vault_unlocks.inc();
+            state.metrics.vault_operations.inc();
+            state.metrics.transaction_submissions.inc();
+            
+            let _ = db::insert_transaction_with_status(
                 &state.pool,
                 &req.owner,
                 &sig,
                 Some(req.amount as i64),
                 "unlock",
+                "pending",
             )
             .await;
             let _ = db::insert_audit_log(

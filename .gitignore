@@ -1,5 +1,40 @@
+# Rust
 target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+
+# Temporary files
+*.tmp
+*.temp
+
+# Patches (if using local patches)
 patches/
 RustCrypto-formats/
 sqlx-mysql/
+
+# Test artifacts
 test-ledger/

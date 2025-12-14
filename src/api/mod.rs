@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 
-use crate::{config::AppConfig, notify::Notifier, ops::RateLimiter, solana_client::SolanaClient};
+use crate::{cache::Cache, config::AppConfig, metrics::Metrics, notify::Notifier, ops::RateLimiter, solana_client::SolanaClient};
 
 mod routes;
 mod ws;
@@ -18,6 +18,8 @@ pub struct AppState {
     pub sol: SolanaClient,
     pub notifier: std::sync::Arc<Notifier>,
     pub rate_limiter: std::sync::Arc<RateLimiter>,
+    pub cache: Option<std::sync::Arc<Cache>>,
+    pub metrics: std::sync::Arc<Metrics>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -142,5 +144,6 @@ pub fn router(state: AppState) -> Router {
             post(routes::internal_transfer_collateral),
         )
         .route("/ws", get(ws::ws_handler))
+        .route("/metrics", get(routes::metrics))
         .with_state(state)
 }

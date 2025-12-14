@@ -73,7 +73,7 @@ async fn handle_socket(state: AppState, socket: WebSocket) {
                             .replace("http://", "ws://");
                         let ws_sender = sender.clone();
                         tokio::spawn(async move {
-                            if let Ok(mut client) = PubsubClient::new(&ws_url).await {
+                            if let Ok(client) = PubsubClient::new(&ws_url).await {
                                 if let Ok((mut stream, subscription)) = client
                                     .account_subscribe(&pk, Some(RpcAccountInfoConfig::default()))
                                     .await

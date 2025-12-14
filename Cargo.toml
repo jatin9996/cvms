@@ -45,11 +45,29 @@ spl-associated-token-account = "2"
 spl-token = "4.0.0"
 tower_governor = { version = "0.4", default-features = false, features = ["axum"] }
 
+# Caching
+# Using vendored OpenSSL to avoid system dependency issues
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+openssl = { version = "0.10", features = ["vendored"] }
+
+# Metrics & Monitoring
+prometheus = "0.13"
+# axum-prometheus = "0.3"  # Not needed - using direct prometheus
+
+# Testing
+mockall = "0.12"
+wiremock = "0.5"
+
+# API Documentation (optional - can be added later if needed)
+# utoipa = { version = "4.2", features = ["axum_extras", "chrono"] }
+# utoipa-swagger-ui = { version = "7.1", features = ["axum"] }
+
 [features]
 anchor = ["anchor-client"]
 
 [dev-dependencies]
 rand = "0.7"
+tokio-test = "0.4"
 
 [patch.crates-io]
 sqlx-mysql = { path = "patches/sqlx-mysql" }

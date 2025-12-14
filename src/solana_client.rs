@@ -85,13 +85,14 @@ pub async fn fetch_vault_yield_info(
         return Err(AppError::Internal("vault account too small".to_string()));
     }
     let mut cursor = 8usize; // skip discriminator
-    let owner_pk = Pubkey::new(&data[cursor..cursor + 32]);
+    let owner_pk = Pubkey::try_from(&data[cursor..cursor + 32])
+        .map_err(|_| AppError::Internal("invalid owner pubkey".to_string()))?;
     cursor += 32;
     // token_account
     cursor += 32;
     // usdt_mint
     cursor += 32;
-    let mut read_u64 = |cur: &mut usize| -> u64 {
+    let read_u64 = |cur: &mut usize| -> u64 {
         let v = u64::from_le_bytes(data[*cur..*cur + 8].try_into().unwrap());
         *cur += 8;
         v
@@ -106,7 +107,8 @@ pub async fn fetch_vault_yield_info(
     let yield_accrued_balance = read_u64(&mut cursor);
     // last_compounded_at (i64)
     cursor += 8;
-    let active_yield_program = Pubkey::new(&data[cursor..cursor + 32]);
+    let active_yield_program = Pubkey::try_from(&data[cursor..cursor + 32])
+        .map_err(|_| AppError::Internal("invalid yield program pubkey".to_string()))?;
     cursor += 32;
     // created_at (i64)
     cursor += 8;
@@ -712,7 +714,9 @@ pub fn build_compute_budget_instructions(units: u32, micro_lamports: u64) -> Vec
 pub fn load_deployer_keypair(path: &str) -> AppResult<Arc<Keypair>> {
     // Prefer env-based secret if provided (DEPLOYER_KEYPAIR_BASE64)
     if let Ok(b64) = std::env::var("DEPLOYER_KEYPAIR_BASE64") {
-        let bytes = base64::decode(b64)
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        let bytes = STANDARD
+            .decode(b64)
             .map_err(|e| AppError::Internal(format!("invalid base64 keypair: {e}")))?;
         let kp = Keypair::from_bytes(&bytes)
             .map_err(|e| AppError::Internal(format!("invalid keypair bytes: {e}")))?;

@@ -1,6 +1,6 @@
 use crate::{api::AppState, db, notify::Notifier, solana_client::get_token_balance};
 use std::str::FromStr;
-use tracing::{info, warn};
+use tracing::warn;
 
 pub async fn run_reconciliation(state: AppState, notifier: std::sync::Arc<Notifier>) {
     let threshold = state.cfg.reconciliation_threshold;
@@ -14,6 +14,9 @@ pub async fn run_reconciliation(state: AppState, notifier: std::sync::Arc<Notifi
                                 Ok(chain_balance) => {
                                     let discrepancy = (chain_balance as i64) - db_balance;
                                     if discrepancy.abs() > threshold {
+                                        // Update metrics
+                                        state.metrics.reconciliation_discrepancies.inc();
+                                        
                                         let _ = db::insert_reconciliation_log(
                                             &state.pool,
                                             &owner,

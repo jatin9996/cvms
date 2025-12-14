@@ -14,6 +14,9 @@ pub struct AppConfig {
     pub position_manager_program_id: String,
     pub reconciliation_threshold: i64,
     pub low_balance_threshold: i64,
+    pub redis_url: String,
+    pub cache_ttl_seconds: u64,
+    pub balance_monitor_interval_seconds: u64,
 }
 
 impl AppConfig {
@@ -44,6 +47,16 @@ impl AppConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(0),
+            redis_url: std::env::var("REDIS_URL")
+                .unwrap_or_else(|_| "redis://localhost:6379".to_string()),
+            cache_ttl_seconds: std::env::var("CACHE_TTL_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(60),
+            balance_monitor_interval_seconds: std::env::var("BALANCE_MONITOR_INTERVAL_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(30),
         }
     }
 }

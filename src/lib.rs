@@ -1,9 +1,11 @@
 pub mod api;
 pub mod auth;
+pub mod cache;
 pub mod config;
 pub mod cpi;
 pub mod db;
 pub mod error;
+pub mod metrics;
 pub mod notify;
 pub mod ops;
 pub mod protocols;

@@ -1,8 +1,16 @@
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
 pub async fn connect(database_url: &str) -> Result<PgPool, sqlx::Error> {
+    let max_connections = std::env::var("DB_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30);
     PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(max_connections)
+        .min_connections(5)
+        .acquire_timeout(std::time::Duration::from_secs(30))
+        .idle_timeout(std::time::Duration::from_secs(600))
+        .max_lifetime(std::time::Duration::from_secs(1800))
         .connect(database_url)
         .await
 }
@@ -27,7 +35,10 @@ pub async fn init(pool: &PgPool) -> Result<(), sqlx::Error> {
 			signature TEXT NOT NULL,
 			amount BIGINT,
 			kind TEXT NOT NULL,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			status TEXT NOT NULL DEFAULT 'pending',
+			retry_count INT NOT NULL DEFAULT 0,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)",
     )
     .execute(pool)
@@ -46,6 +57,31 @@ pub async fn init(pool: &PgPool) -> Result<(), sqlx::Error> {
 	)
 	.execute(pool)
 	.await?;
+
+    sqlx::query(
+		"CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status)"
+	)
+	.execute(pool)
+	.await?;
+
+    // Add status column if missing (for existing databases)
+    sqlx::query(
+        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'"
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0"
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+    )
+    .execute(pool)
+    .await?;
 
     // Vault snapshots
     sqlx::query(
@@ -286,14 +322,63 @@ pub async fn insert_transaction(
     amount: Option<i64>,
     kind: &str,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query("INSERT INTO transactions (owner, signature, amount, kind) VALUES ($1, $2, $3, $4) ON CONFLICT (signature) DO NOTHING")
+    insert_transaction_with_status(pool, owner, signature, amount, kind, "pending").await
+}
+
+pub async fn insert_transaction_with_status(
+    pool: &PgPool,
+    owner: &str,
+    signature: &str,
+    amount: Option<i64>,
+    kind: &str,
+    status: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("INSERT INTO transactions (owner, signature, amount, kind, status) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (signature) DO NOTHING")
 		.bind(owner)
 		.bind(signature)
 		.bind(amount)
 		.bind(kind)
+		.bind(status)
 		.execute(pool)
 		.await?;
     Ok(())
+}
+
+pub async fn update_transaction_status(
+    pool: &PgPool,
+    signature: &str,
+    status: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE transactions SET status = $1, updated_at = NOW() WHERE signature = $2")
+        .bind(status)
+        .bind(signature)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn increment_transaction_retry(
+    pool: &PgPool,
+    signature: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE transactions SET retry_count = retry_count + 1, updated_at = NOW() WHERE signature = $1")
+        .bind(signature)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn get_pending_transactions(
+    pool: &PgPool,
+    limit: i64,
+) -> Result<Vec<(String, String, String, i32)>, sqlx::Error> {
+    let rows = sqlx::query_as::<_, (String, String, String, i32)>(
+        "SELECT owner, signature, kind, retry_count FROM transactions WHERE status = 'pending' ORDER BY created_at ASC LIMIT $1"
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
 }
 
 pub async fn list_transactions(
@@ -711,7 +796,7 @@ pub async fn ms_get_contacts_for(
         return Ok(vec![]);
     }
     // Build simple IN clause
-    let mut query = String::from(
+    let query = String::from(
         "SELECT pubkey, email, webhook FROM ms_signer_contacts WHERE pubkey = ANY($1)",
     );
     let rows = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(&query)

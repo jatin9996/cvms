@@ -6,7 +6,7 @@ use dotenvy::dotenv;
 use tracing::info;
 
 use cvmsback::{
-    api, api::AppState, config::AppConfig, db, notify::Notifier, ops::RateLimiter,
+    api, api::AppState, cache::Cache, config::AppConfig, db, metrics::Metrics, notify::Notifier, ops::RateLimiter,
     solana_client::SolanaClient, tasks, telemetry,
 };
 
@@ -23,12 +23,28 @@ async fn main() -> Result<()> {
     let sol = SolanaClient::new(&cfg.solana_rpc_url);
     let notifier = Notifier::new(1024);
     let rate_limiter = std::sync::Arc::new(RateLimiter::new(10));
+    
+    // Initialize cache (optional, fails gracefully if Redis unavailable)
+    let cache = Cache::new(&cfg.redis_url, cfg.cache_ttl_seconds)
+        .map(|c| std::sync::Arc::new(c))
+        .ok();
+    if cache.is_some() {
+        info!("Redis cache initialized");
+    } else {
+        info!("Redis cache unavailable, continuing without cache");
+    }
+    
+    // Initialize metrics
+    let metrics = Metrics::new().expect("Failed to initialize metrics");
+    
     let state = AppState {
         pool: pool.clone(),
         cfg: cfg.clone(),
         sol,
         notifier: notifier.clone(),
         rate_limiter: rate_limiter.clone(),
+        cache: cache.clone(),
+        metrics: metrics.clone(),
     };
 
     // background tasks
@@ -64,6 +80,18 @@ async fn main() -> Result<()> {
         let recon_state = state.clone();
         tokio::spawn(async move {
             tasks::yield_tasks::run_yield_scheduler(recon_state).await;
+        });
+    }
+    {
+        let balance_state = state.clone();
+        let balance_notifier = notifier.clone();
+        tokio::spawn(async move {
+            tasks::balance_monitor::run_balance_monitor(
+                balance_state,
+                balance_notifier,
+                cfg.balance_monitor_interval_seconds,
+            )
+            .await;
         });
     }
 
