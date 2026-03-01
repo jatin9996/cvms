@@ -1,7 +1,10 @@
 #[cfg(test)]
 mod tests {
     use cvmsback::vault::VaultManager;
-    use cvmsback::solana_client::{build_instruction_initialize_vault, build_instruction_deposit, DepositParams};
+    use cvmsback::solana_client::{
+        build_instruction_deposit, build_instruction_initialize_vault, build_instruction_withdraw,
+        DepositParams, WithdrawParams,
+    };
     use solana_sdk::pubkey::Pubkey;
     use std::str::FromStr;
 
@@ -62,6 +65,49 @@ mod tests {
             let ix = result.unwrap();
             let encoded_amount = u64::from_le_bytes(ix.data[8..16].try_into().unwrap());
             assert_eq!(encoded_amount, amount, "Amount encoding failed for {}", amount);
+        }
+    }
+
+    #[test]
+    fn test_withdraw_instruction_builder() {
+        let program_id = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let amount = 500u64;
+
+        let params = WithdrawParams {
+            program_id,
+            owner,
+            mint,
+            amount,
+        };
+
+        let result = build_instruction_withdraw(&params);
+        assert!(result.is_ok());
+        let ix = result.unwrap();
+        assert_eq!(ix.program_id, program_id);
+        assert_eq!(ix.accounts.len(), 6);
+        let encoded_amount = u64::from_le_bytes(ix.data[8..16].try_into().unwrap());
+        assert_eq!(encoded_amount, amount);
+    }
+
+    #[test]
+    fn test_withdraw_instruction_with_different_amounts() {
+        let program_id = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+
+        for amount in [1u64, 100u64, 50_000u64, 1_000_000u64] {
+            let params = WithdrawParams {
+                program_id,
+                owner,
+                mint,
+                amount,
+            };
+            let result = build_instruction_withdraw(&params);
+            assert!(result.is_ok());
+            let ix = result.unwrap();
+            assert_eq!(u64::from_le_bytes(ix.data[8..16].try_into().unwrap()), amount);
         }
     }
 }

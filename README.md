@@ -88,12 +88,22 @@ cvmsback/
 ├── tests/                   # Test suites
 ├── scripts/                 # Utility scripts
 ├── docs/                    # Documentation
+│   ├── ARCHITECTURE.md      # System architecture (client-facing)
+│   ├── FLOW.md              # API & background flows (client-facing)
+│   └── README.md            # Docs index
 └── Cargo.toml
 ```
 
-## API Documentation
+## Documentation
 
-See [API Documentation](./docs/API_DOCUMENTATION.md) for complete API reference.
+**Client-facing (architecture & flows):**
+
+- **[Architecture](./docs/ARCHITECTURE.md)**: System overview, API layer, auth, Vault/CPI managers, database, background tasks, config
+- **[Flow](./docs/FLOW.md)**: Step-by-step flows (nonce + signature, deposit/withdraw, lock/unlock, WebSocket, admin)
+
+**Other:**
+
+- **[API Documentation](./docs/API_DOCUMENTATION.md)**: Complete API reference (if present)
 
 ### Key Endpoints
 
@@ -237,4 +247,4 @@ For issues, questions, or contributions, please open an issue on the repository.
 ## Related Projects
 
 - **[Smart Contract](../cvms/collateral-vault/): Solana program**
-- **[Documentation](./docs/): API and architecture docs**
+- **[Documentation](./docs/): [ARCHITECTURE](./docs/ARCHITECTURE.md), [FLOW](./docs/FLOW.md), API reference**

@@ -666,6 +666,7 @@ pub async fn build_partial_withdraw_tx(
     Ok(bytes)
 }
 
+/// Simplified PM lock instruction (2 accounts). Use for PMs that accept owner + program_id only.
 pub fn build_instruction_pm_lock(
     position_manager_program_id: &Pubkey,
     vault_program_id: &Pubkey,
@@ -685,6 +686,7 @@ pub fn build_instruction_pm_lock(
     })
 }
 
+/// Simplified PM unlock instruction (2 accounts).
 pub fn build_instruction_pm_unlock(
     position_manager_program_id: &Pubkey,
     vault_program_id: &Pubkey,
@@ -699,6 +701,82 @@ pub fn build_instruction_pm_unlock(
     data.extend_from_slice(&amount.to_le_bytes());
     Ok(Instruction {
         program_id: *position_manager_program_id,
+        accounts,
+        data,
+    })
+}
+
+// -----------------------------------------------------------------------------
+// Mock position manager (Anchor) CPI-compatible instruction builders
+// Used for testing and integration with collateral-vault's mock-position-manager.
+// Account order must match: OpenPosition / ClosePosition structs in the mock.
+// -----------------------------------------------------------------------------
+
+/// PDA seeds for mock-position-manager position_summary (must match program).
+const MOCK_PM_POSITION_SUMMARY_SEED: &[u8] = b"position_summary";
+
+/// Derive position_summary PDA for mock-position-manager (for tests and tx building).
+pub fn derive_position_summary_pda(vault_pda: &Pubkey, mock_pm_program_id: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(
+        &[MOCK_PM_POSITION_SUMMARY_SEED, vault_pda.as_ref()],
+        mock_pm_program_id,
+    )
+    .0
+}
+
+/// Build open_position instruction for the Anchor mock-position-manager program.
+/// Caller must pass owner as signer; vault PDA is derived from owner and vault_program_id.
+/// Account order: caller_program, vault_authority, instructions, vault, position_summary, collateral_vault_program.
+pub fn build_instruction_mock_pm_open_position(
+    mock_pm_program_id: &Pubkey,
+    vault_program_id: &Pubkey,
+    owner: &Pubkey,
+    amount: u64,
+) -> AppResult<Instruction> {
+    let (vault_pda, _) = derive_vault_pda(owner, vault_program_id);
+    let (vault_authority, _) = derive_vault_authority_pda(vault_program_id);
+    let position_summary = derive_position_summary_pda(&vault_pda, mock_pm_program_id);
+
+    let accounts = vec![
+        AccountMeta::new_readonly(*mock_pm_program_id, false), // caller_program
+        AccountMeta::new_readonly(vault_authority, false),      // vault_authority
+        AccountMeta::new_readonly(sysvar::instructions::ID, false), // instructions
+        AccountMeta::new(vault_pda, false),                    // vault
+        AccountMeta::new(position_summary, false),            // position_summary
+        AccountMeta::new_readonly(*vault_program_id, false),   // collateral_vault_program
+    ];
+    let mut data = anchor_discriminator("open_position").to_vec();
+    data.extend_from_slice(&amount.to_le_bytes());
+    Ok(Instruction {
+        program_id: *mock_pm_program_id,
+        accounts,
+        data,
+    })
+}
+
+/// Build close_position instruction for the Anchor mock-position-manager program.
+pub fn build_instruction_mock_pm_close_position(
+    mock_pm_program_id: &Pubkey,
+    vault_program_id: &Pubkey,
+    owner: &Pubkey,
+    amount: u64,
+) -> AppResult<Instruction> {
+    let (vault_pda, _) = derive_vault_pda(owner, vault_program_id);
+    let (vault_authority, _) = derive_vault_authority_pda(vault_program_id);
+    let position_summary = derive_position_summary_pda(&vault_pda, mock_pm_program_id);
+
+    let accounts = vec![
+        AccountMeta::new_readonly(*mock_pm_program_id, false),
+        AccountMeta::new_readonly(vault_authority, false),
+        AccountMeta::new_readonly(sysvar::instructions::ID, false),
+        AccountMeta::new(vault_pda, false),
+        AccountMeta::new(position_summary, false),
+        AccountMeta::new_readonly(*vault_program_id, false),
+    ];
+    let mut data = anchor_discriminator("close_position").to_vec();
+    data.extend_from_slice(&amount.to_le_bytes());
+    Ok(Instruction {
+        program_id: *mock_pm_program_id,
         accounts,
         data,
     })
@@ -1033,5 +1111,169 @@ mod tests {
             u64::from_le_bytes(unlock_ix.data[1..9].try_into().unwrap()),
             6
         );
+    }
+
+    #[test]
+    fn test_set_withdraw_min_delay_instruction() {
+        let program_id = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let seconds: i64 = 120;
+        let ix = build_instruction_set_withdraw_min_delay(&program_id, &owner, seconds).unwrap();
+        let (vault_pda, _) = derive_vault_pda(&owner, &program_id);
+        assert_eq!(ix.program_id, program_id);
+        assert_eq!(ix.accounts.len(), 2);
+        assert_eq!(ix.accounts[0], AccountMeta::new(owner, true));
+        assert_eq!(ix.accounts[1], AccountMeta::new(vault_pda, false));
+        let disc: [u8; 8] = ix.data[..8].try_into().unwrap();
+        assert_eq!(disc, anchor_discriminator("set_withdraw_min_delay"));
+        let encoded: i64 = i64::from_le_bytes(ix.data[8..16].try_into().unwrap());
+        assert_eq!(encoded, seconds);
+    }
+
+    #[test]
+    fn test_set_withdraw_rate_limit_instruction() {
+        let program_id = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let window_seconds: u32 = 3600;
+        let max_amount: u64 = 100_000;
+        let ix = build_instruction_set_withdraw_rate_limit(
+            &program_id,
+            &owner,
+            window_seconds,
+            max_amount,
+        )
+        .unwrap();
+        let (vault_pda, _) = derive_vault_pda(&owner, &program_id);
+        assert_eq!(ix.program_id, program_id);
+        assert_eq!(ix.accounts.len(), 2);
+        assert_eq!(
+            u32::from_le_bytes(ix.data[8..12].try_into().unwrap()),
+            window_seconds
+        );
+        assert_eq!(
+            u64::from_le_bytes(ix.data[12..20].try_into().unwrap()),
+            max_amount
+        );
+    }
+
+    #[test]
+    fn test_add_remove_withdraw_whitelist_instructions() {
+        let program_id = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let address = Pubkey::new_unique();
+        let add_ix =
+            build_instruction_add_withdraw_whitelist(&program_id, &owner, &address).unwrap();
+        let (vault_pda, _) = derive_vault_pda(&owner, &program_id);
+        assert_eq!(add_ix.program_id, program_id);
+        assert_eq!(add_ix.accounts.len(), 2);
+        assert_eq!(add_ix.data[8..8 + 32], address.to_bytes());
+        let remove_ix =
+            build_instruction_remove_withdraw_whitelist(&program_id, &owner, &address).unwrap();
+        assert_eq!(remove_ix.program_id, program_id);
+        assert_eq!(remove_ix.accounts.len(), 2);
+        assert_eq!(remove_ix.data[8..8 + 32], address.to_bytes());
+    }
+
+    #[test]
+    fn test_request_withdraw_instruction() {
+        let program_id = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let amount: u64 = 50_000;
+        let ix = build_instruction_request_withdraw(&program_id, &owner, amount).unwrap();
+        let (vault_pda, _) = derive_vault_pda(&owner, &program_id);
+        assert_eq!(ix.program_id, program_id);
+        assert_eq!(ix.accounts.len(), 2);
+        assert_eq!(ix.accounts[0], AccountMeta::new(owner, true));
+        assert_eq!(ix.accounts[1], AccountMeta::new(vault_pda, false));
+        let disc: [u8; 8] = ix.data[..8].try_into().unwrap();
+        assert_eq!(disc, anchor_discriminator("request_withdraw"));
+        assert_eq!(
+            u64::from_le_bytes(ix.data[8..16].try_into().unwrap()),
+            amount
+        );
+    }
+
+    #[test]
+    fn test_emergency_withdraw_instruction() {
+        let program_id = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let authority = Pubkey::new_unique();
+        let params = EmergencyWithdrawParams {
+            program_id,
+            authority,
+            owner,
+            amount: 25_000,
+        };
+        let ix = build_instruction_emergency_withdraw(&params, &mint).unwrap();
+        let (vault_pda, _) = derive_vault_pda(&owner, &program_id);
+        let (vault_authority, _) = derive_vault_authority_pda(&program_id);
+        let vault_ata = derive_associated_token_address(&vault_pda, &mint);
+        let user_ata = derive_associated_token_address(&owner, &mint);
+        assert_eq!(ix.program_id, program_id);
+        assert_eq!(ix.accounts.len(), 7);
+        assert_eq!(ix.accounts[0], AccountMeta::new(authority, true));
+        assert_eq!(ix.accounts[1], AccountMeta::new_readonly(owner, false));
+        assert_eq!(ix.accounts[2], AccountMeta::new(vault_pda, false));
+        assert_eq!(ix.accounts[3], AccountMeta::new_readonly(vault_authority, false));
+        assert_eq!(ix.accounts[4], AccountMeta::new(vault_ata, false));
+        assert_eq!(ix.accounts[5], AccountMeta::new(user_ata, false));
+        assert_eq!(
+            ix.accounts[6],
+            AccountMeta::new_readonly(spl_token::id(), false)
+        );
+        let disc: [u8; 8] = ix.data[..8].try_into().unwrap();
+        assert_eq!(disc, anchor_discriminator("emergency_withdraw"));
+        assert_eq!(
+            u64::from_le_bytes(ix.data[8..16].try_into().unwrap()),
+            25_000
+        );
+    }
+
+    #[test]
+    fn test_schedule_timelock_instruction_layout() {
+        let program_id = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let amount: u64 = 100_000;
+        let duration_seconds: i64 = 60;
+        let params = ScheduleTimelockParams {
+            program_id,
+            owner,
+            amount,
+            duration_seconds,
+        };
+        let ix = build_instruction_schedule_timelock(&params).unwrap();
+        assert_eq!(ix.program_id, program_id);
+        assert_eq!(ix.accounts.len(), 2);
+        assert_eq!(ix.accounts[0], AccountMeta::new(owner, true));
+        assert_eq!(ix.accounts[1], AccountMeta::new_readonly(owner, false));
+        assert_eq!(ix.data[0], 20);
+        assert_eq!(
+            u64::from_le_bytes(ix.data[1..9].try_into().unwrap()),
+            amount
+        );
+        assert_eq!(
+            i64::from_le_bytes(ix.data[9..17].try_into().unwrap()),
+            duration_seconds
+        );
+    }
+
+    #[test]
+    fn test_derive_vault_pda_consistency() {
+        let program_id = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let (pda1, bump1) = derive_vault_pda(&owner, &program_id);
+        let (pda2, bump2) = derive_vault_pda(&owner, &program_id);
+        assert_eq!(pda1, pda2);
+        assert_eq!(bump1, bump2);
+    }
+
+    #[test]
+    fn test_derive_vault_authority_pda_consistency() {
+        let program_id = Pubkey::new_unique();
+        let (va1, b1) = derive_vault_authority_pda(&program_id);
+        let (va2, b2) = derive_vault_authority_pda(&program_id);
+        assert_eq!(va1, va2);
+        assert_eq!(b1, b2);
     }
 }

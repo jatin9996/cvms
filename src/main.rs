@@ -25,14 +25,21 @@ async fn main() -> Result<()> {
     let rate_limiter = std::sync::Arc::new(RateLimiter::new(10));
     
     // Initialize cache (optional, fails gracefully if Redis unavailable)
-    let cache = Cache::new(&cfg.redis_url, cfg.cache_ttl_seconds)
-        .map(|c| std::sync::Arc::new(c))
-        .ok();
-    if cache.is_some() {
-        info!("Redis cache initialized");
+    let cache = if cfg.redis_url.is_empty() {
+        info!("Redis cache disabled (REDIS_URL is empty)");
+        None
     } else {
-        info!("Redis cache unavailable, continuing without cache");
-    }
+        match Cache::new(&cfg.redis_url, cfg.cache_ttl_seconds) {
+            Ok(c) => {
+                info!("Redis cache initialized");
+                Some(std::sync::Arc::new(c))
+            }
+            Err(e) => {
+                info!("Redis cache unavailable: {}, continuing without cache", e);
+                None
+            }
+        }
+    };
     
     // Initialize metrics
     let metrics = Metrics::new().expect("Failed to initialize metrics");
